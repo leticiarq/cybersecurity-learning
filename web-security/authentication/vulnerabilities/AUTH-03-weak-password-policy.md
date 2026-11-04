@@ -1,68 +1,60 @@
-# AUTH-03 — Weak Password Policy
+# AUTH-03 — Política de senhas fraca
 
-## Overview
+## O que eu entendi, em uma frase
 
-Uma **weak password policy** permite senhas que podem ser adivinhadas com baixo custo: valores comuns, curtos, previsíveis ou já comprometidos.
+A aplicação aceita senhas fáceis de adivinhar, reutilizadas ou já conhecidas em vazamentos.
 
-Políticas modernas priorizam comprimento, bloqueio de senhas conhecidas, liberdade para usar password managers e troca diante de comprometimento. Exigir combinações rígidas de maiúsculas, números e símbolos não garante força e pode incentivar padrões previsíveis.
+## Exemplo para eu fixar
 
-## How It Works
+`Empresa2026!` contém maiúscula, número e símbolo, mas segue um padrão humano previsível. Cumprir uma regra visual de complexidade não torna uma senha automaticamente forte.
 
-Atacantes não começam por todas as combinações possíveis. Eles priorizam senhas de vazamentos, palavras comuns e transformações humanas. Reutilização permite que uma credencial vazada em outro serviço funcione no atual.
+Atacantes não começam testando todas as combinações. Eles priorizam senhas vazadas, palavras comuns e transformações como adicionar o ano e um ponto de exclamação.
 
 ```text
-Senha comum/reutilizada -> lista priorizada -> tentativa online
-Hash de senha vazado    -> guessing offline -> credencial recuperada
+senha comum ou reutilizada -> lista priorizada -> tentativa online
+hash vazado                -> tentativa offline -> possível recuperação
 ```
 
-Um limite máximo pequeno, truncamento silencioso ou bloqueio de colagem também prejudica senhas únicas e longas.
+Uma senha longa, única e gerada ou armazenada por um gerenciador costuma resistir melhor a esse tipo de priorização.
 
-## Example
+## Por que preciso prestar atenção
 
-`Empresa2026!` satisfaz uma regra de “maiúscula, número e símbolo”, mas segue um padrão previsível. Uma passphrase longa e única gerada ou armazenada por um password manager pode ser mais resistente.
+Senhas fracas aumentam a chance de tomada da conta por brute force, password spraying e credential stuffing. Se hashes forem vazados, também diminuem o custo das tentativas offline.
 
-## Impact
+## Como eu reconheceria em ambiente autorizado
 
-Senhas fracas elevam a chance de **credential compromise** e account takeover por brute force, password spraying ou credential stuffing. Após vazamento de hashes, também reduzem o custo de ataque offline.
+Em uma conta de teste, avalie:
 
-## How to Identify
+- comprimentos mínimo e máximo;
+- aceitação de valores comuns ou do próprio nome de usuário;
+- truncamento silencioso;
+- suporte a colagem e gerenciadores de senha;
+- comportamento durante criação e troca de senha.
 
-Em conta de teste, avalie comprimento mínimo e máximo, senhas comuns, senhas que contêm o identificador, colagem, compatibilidade com password managers e mudança de senha. Não teste credenciais reais vazadas.
+Não use credenciais reais vazadas no teste.
 
-Comportamento esperado: bloqueio de valores conhecidamente fracos sem regras que reduzam a usabilidade segura. Comportamento vulnerável: aceitação de senhas triviais ou truncamento não informado.
+## Como corrigir ou prevenir
 
-## Mitigation
-
-- permita senhas e passphrases longas;
-- compare novas senhas com blocklists de valores comuns ou comprometidos;
-- permita colagem, password managers e caracteres Unicode conforme o sistema;
+- permita senhas e frases-senha longas;
+- bloqueie valores comuns e comprometidos por meio de uma lista apropriada;
+- permita colagem e uso de gerenciadores de senha;
 - não trunque silenciosamente;
-- não imponha troca periódica sem motivo; troque diante de comprometimento;
-- ofereça MFA e controles contra automação;
-- armazene senhas conforme [AUTH-05](AUTH-05-insecure-password-storage.md).
+- não exija troca periódica sem indício de comprometimento;
+- ofereça MFA e proteção contra automação;
+- armazene as senhas conforme [AUTH-05](AUTH-05-insecure-password-storage.md).
 
-## Related Attacks
+## Não confunda
 
-Políticas fracas aumentam o sucesso de [tentativas automatizadas](AUTH-04-authentication-attempts.md). Reutilização conecta credential stuffing à [exposição de credenciais](AUTH-14-credential-exposure.md).
+Política de senha trata **o que o usuário pode escolher**. Armazenamento de senha trata **como o servidor protege essa escolha**. Os dois controles são necessários e resolvem problemas diferentes.
 
-## CWE
+## O que eu preciso lembrar
 
-[CWE-521 — Weak Password Requirements](https://cwe.mitre.org/data/definitions/521.html) corresponde a requisitos que permitem credenciais facilmente adivinháveis.
+- Complexidade aparente não substitui comprimento e imprevisibilidade.
+- Uma senha única limita o efeito de vazamentos de outros serviços.
+- Lista de bloqueio, MFA e rate limiting são camadas complementares.
 
-## OWASP Relationship
+## Referências técnicas
 
-O OWASP Authentication Cheat Sheet apresenta controles modernos de força de senha. O WSTG inclui **WSTG-ATHN-07 — Weak Authentication Methods** para avaliar comprimento, reutilização e valores comuns.
-
-## Key Takeaways
-
-- Complexidade visual não substitui comprimento e imprevisibilidade.
-- Senha única reduz o efeito de vazamentos em outros serviços.
-- Blocklists complementam, mas não substituem, rate limiting e MFA.
-- Política e armazenamento são problemas distintos.
-
-## References
-
-- [OWASP Authentication Cheat Sheet — Password Strength Controls](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html#implement-proper-password-strength-controls)
-- [OWASP WSTG — Weak Authentication Methods](https://wstg.owasp.org/latest/4-Web_Application_Security_Testing/04-Authentication/07-Weak_Authentication_Methods/)
+- [OWASP Authentication Cheat Sheet — Password Strength](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html#implement-proper-password-strength-controls)
 - [NIST SP 800-63B](https://pages.nist.gov/800-63-4/sp800-63b.html)
-- [MITRE CWE-521](https://cwe.mitre.org/data/definitions/521.html)
+- [CWE-521 — Weak Password Requirements](https://cwe.mitre.org/data/definitions/521.html)

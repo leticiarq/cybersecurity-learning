@@ -1,70 +1,62 @@
-# AUTH-09 — Weak Password Recovery
+# AUTH-09 — Recuperação de senha fraca
 
-## Overview
+## O que eu entendi, em uma frase
 
-Password recovery é um caminho alternativo para recuperar acesso à conta. Se esse fluxo exige evidência mais fraca que o login, ele pode contornar a autenticação principal.
+O caminho para recuperar a conta exige uma prova mais fraca que o login normal.
 
-Falhas incluem perguntas de segurança descobríveis, validação insuficiente, mudança de conta entre etapas, ausência de limites e suporte humano com verificação fraca.
+## Como entendo a recuperação de conta
 
-## How It Works
+Quem conclui a recuperação pode escolher uma nova senha e assumir a conta. Portanto, esse fluxo é uma forma alternativa de provar identidade, não apenas uma função auxiliar.
 
 ```text
-Identificação -> desafio/contato -> autorização do reset
-                                         |
-                          evidência fraca ou etapa pulável
-                                         |
-                               nova senha definida
+identificar a conta -> comprovar controle -> autorizar reset -> definir senha
+                              |
+                 evidência fraca ou etapa ignorada
+                              |
+                     tomada da conta
 ```
 
-Cada etapa precisa estar vinculada à mesma conta e transação. O backend deve validar o estado; controles apenas no frontend podem ser ignorados.
+## Exemplo para eu fixar
 
-## Example
+Uma aplicação pergunta “qual é sua cidade natal?” e permite tentativas ilimitadas. A resposta aparece no perfil público da pessoa. Se acertar essa pergunta for suficiente para definir uma senha nova, o caminho de recuperação é muito mais fraco que o login.
 
-Uma aplicação pergunta “qual sua cidade natal?” e permite tentativas ilimitadas. A resposta aparece no perfil público da pessoa. Acertar a pergunta autoriza diretamente uma nova senha, tornando o fluxo mais fraco que o login.
+Outras causas incluem troca da conta entre etapas, validação apenas no frontend, suporte humano com verificação insuficiente e ausência de limites.
 
-## Impact
+## Por que preciso prestar atenção
 
-Pode causar authentication bypass e account takeover, alterando confidentiality e integrity dos dados da vítima. Também pode gerar denial of service se a senha for trocada sem controle e a vítima perder acesso.
+A falha pode contornar a autenticação principal e permitir tomada da conta. Também pode causar indisponibilidade ao trocar a senha e remover o acesso do titular legítimo.
 
-## How to Identify
+## Como eu reconheceria em ambiente autorizado
 
-Com contas de teste, mapeie todas as etapas e transições. Verifique troca de identificador, repetição, bypass de telas, perguntas descobríveis, canais alternativos, limites, notificações e efeito sobre sessões existentes.
+Com contas de teste, desenhe todas as etapas e transições. Verifique:
 
-Comportamento esperado: respostas genéricas, evidência adequada, vínculo de transação e confirmação server-side. Vulnerável: uma etapa fraca ou manipulável autoriza o reset.
+- se a conta pode ser trocada no meio do fluxo;
+- se uma tela pode ser pulada por acesso direto ao endpoint;
+- se perguntas usam informação pública;
+- se tentativas são limitadas;
+- se canais alternativos aplicam a mesma política;
+- se o titular é notificado;
+- o que acontece com sessões já abertas.
 
-## Mitigation
+## Como corrigir ou prevenir
 
-- use canal de recuperação previamente verificado e token forte;
+- use um canal previamente verificado e um token forte;
 - não dependa de perguntas com respostas públicas ou estáticas;
-- vincule cada etapa à conta e transação iniciadas;
+- vincule cada etapa à mesma conta e transação;
+- valide todo o estado no servidor;
 - aplique limites e respostas que evitem enumeração;
-- não altere a conta até a prova ser validada;
-- notifique o usuário após reset e permita reportar abuso;
-- considere encerrar sessões existentes após a mudança;
-- proteja suporte e recuperação de MFA com controles equivalentes.
+- notifique o usuário após a mudança;
+- encerre ou reavalie sessões existentes conforme o risco;
+- proteja recuperação de MFA e atendimento humano com controles equivalentes.
 
-## Related Attacks
+## O que eu preciso lembrar
 
-Recovery fraco pode explorar [username enumeration](AUTH-01-username-enumeration.md) ou [tokens previsíveis](AUTH-10-predictable-recovery-tokens.md). Quando pula totalmente uma barreira, torna-se um caminho de [authentication bypass](AUTH-12-authentication-bypass.md).
+- Recuperação não pode ser uma “porta dos fundos” mais fraca.
+- Cada etapa precisa pertencer à mesma conta e transação.
+- O fluxo seguro também considera notificação e contenção após o reset.
 
-## CWE
-
-[CWE-640 — Weak Password Recovery Mechanism for Forgotten Password](https://cwe.mitre.org/data/definitions/640.html) corresponde diretamente a mecanismos de recuperação cuja evidência pode ser descoberta ou contornada.
-
-## OWASP Relationship
-
-O OWASP Forgot Password Cheat Sheet descreve mensagens, tokens, vínculo de conta e pós-reset. O WSTG possui testes para weak security questions e weak password change/reset.
-
-## Key Takeaways
-
-- Recuperação faz parte da autenticação e não pode ser mais fraca.
-- Perguntas pessoais frequentemente são descobríveis.
-- Todas as etapas precisam ser validadas no servidor.
-- Reset seguro inclui contenção e notificação posterior.
-
-## References
+## Referências técnicas
 
 - [OWASP Forgot Password Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html)
-- [OWASP WSTG — Weak Security Question Answer](https://wstg.owasp.org/latest/4-Web_Application_Security_Testing/04-Authentication/08-Weak_Security_Question_Answer/)
 - [OWASP WSTG — Weak Password Change or Reset](https://wstg.owasp.org/latest/4-Web_Application_Security_Testing/04-Authentication/09-Weak_Password_Change_or_Reset_Functionalities/)
-- [MITRE CWE-640](https://cwe.mitre.org/data/definitions/640.html)
+- [CWE-640 — Weak Password Recovery Mechanism](https://cwe.mitre.org/data/definitions/640.html)

@@ -1,102 +1,163 @@
-# Authentication Basics
+# Fundamentos de autenticação — minhas anotações
 
-## O que é autenticação?
+## A ideia central
 
-**Authentication** é o processo de verificar uma alegação de identidade. Digitar um e-mail identifica a conta pretendida; apresentar a senha correta fornece evidência de que a pessoa controla uma credencial associada a essa conta. A autenticação não prova necessariamente a identidade civil do usuário: dentro de um serviço, uma identidade digital pode representar apenas uma conta.
+Imagine que Ana deseja ver seus pedidos em uma loja virtual. Informar `ana@example.com` apenas diz **qual conta** ela quer usar. A senha fornece uma evidência de que ela controla essa conta. Se a evidência for aceita, a aplicação cria uma forma temporária de reconhecer Ana nas próximas páginas.
 
-Uma **identidade** é a representação de um sujeito no sistema, normalmente associada a um identificador único e a atributos. Uma **credencial** é algo usado para sustentar a alegação de identidade: senha, chave criptográfica, código temporário ou dado biométrico, por exemplo. O identificador de usuário geralmente não é secreto; a credencial deve ser protegida.
+Esse exemplo contém quatro conceitos diferentes:
 
-## Authentication vs authorization
-
-| Questão | Authentication (AuthN) | Authorization (AuthZ) |
+| Conceito | Pergunta que responde | Exemplo |
 |---|---|---|
-| Pergunta | Quem é você? | O que você pode fazer? |
-| Exemplo | Validar senha e MFA de Ana | Permitir que Ana leia apenas os próprios pedidos |
-| Momento | Estabelece ou confirma a identidade | Deve ser verificada em cada operação protegida |
+| Identidade | Quem é representado no sistema? | A conta de Ana |
+| Identificador | Qual conta está sendo solicitada? | `ana@example.com` |
+| Credencial | Que evidência será apresentada? | Senha, chave de acesso ou código temporário |
+| Autenticação (AuthN) | A evidência é suficiente? | Conferir a senha e o segundo fator |
 
-Estar autenticado não significa poder acessar qualquer recurso. Um usuário comum autenticado continua sem autorização para executar funções administrativas.
+O identificador geralmente não é secreto. A credencial deve ser protegida, pois outra pessoa pode usá-la para se passar pelo titular da conta.
 
-## Fluxo básico de login
+## Autenticação não é autorização
+
+Depois de confirmar quem está fazendo a requisição, a aplicação ainda precisa decidir o que essa identidade pode fazer. Essa segunda decisão é a **autorização (AuthZ)**.
+
+| Situação | Controle aplicado |
+|---|---|
+| Conferir a senha de Ana | Autenticação |
+| Permitir que Ana veja os próprios pedidos | Autorização |
+| Impedir Ana de abrir o painel de administrador | Autorização |
+
+Uma forma simples de lembrar:
 
 ```text
-Usuário -> envia identificador e credencial por HTTPS
-Servidor -> localiza a conta e verifica a credencial
-Servidor -> aplica MFA e controles de risco, quando necessários
-Servidor -> cria uma sessão ou emite tokens
-Cliente  -> apresenta o identificador de sessão/token nas próximas requisições
-Servidor -> autentica o contexto e aplica autorização ao recurso solicitado
+Autenticação: quem está pedindo?
+Autorização:  essa pessoa pode fazer isso?
 ```
 
-Falhas devem produzir mensagens suficientemente genéricas, ser registradas com cuidado e alimentar controles contra abuso. Credenciais e tokens não devem aparecer em logs.
+A autorização deve ser verificada em toda operação protegida. O fato de alguém ter feito login não concede acesso a todos os recursos.
 
-## Sessões e cookies de sessão
+## O que acontece durante um login
 
-HTTP não mantém estado por si só. Na autenticação baseada em sessão, o servidor cria um registro de sessão e entrega ao navegador um identificador aleatório. Um cookie pode transportá-lo automaticamente:
+```text
+1. Ana envia identificador e senha por HTTPS
+2. O servidor localiza a conta
+3. O servidor verifica a senha armazenada de forma segura
+4. Se necessário, solicita um segundo fator
+5. O servidor cria uma sessão ou emite tokens
+6. Nas próximas requisições, reconhece Ana por essa sessão ou token
+7. Para cada recurso, verifica também a autorização
+```
+
+Uma falha pode ocorrer em qualquer etapa. Mensagens diferentes podem revelar quais contas existem; tentativas ilimitadas podem facilitar adivinhação; uma sessão mal protegida pode ser roubada mesmo que a senha seja forte.
+
+## Como a aplicação “lembra” do login
+
+O protocolo HTTP não se lembra automaticamente de uma requisição anterior. Por isso, a aplicação precisa estabelecer um contexto autenticado. Duas abordagens comuns são sessões mantidas no servidor e tokens autocontidos.
+
+### Sessão mantida no servidor
+
+Após o login, o servidor cria um registro parecido com este:
+
+```text
+ID da sessão: r4nd0m...
+Usuário:      Ana
+Criada em:    10:00
+Expira em:    10:30
+```
+
+O navegador recebe apenas o identificador aleatório, normalmente em um cookie:
 
 ```http
-Set-Cookie: session_id=valor-aleatorio; Secure; HttpOnly; SameSite=Lax
+Set-Cookie: session_id=r4nd0m...; Secure; HttpOnly; SameSite=Lax
 ```
 
-Nas requisições seguintes, o navegador devolve o cookie. O servidor consulta o estado da sessão e reconhece o usuário. `Secure` restringe o envio a HTTPS; `HttpOnly` impede acesso pelo JavaScript da página; `SameSite` ajuda a limitar envios entre sites. Esses atributos são camadas de defesa e precisam ser combinados com proteção contra CSRF, rotação após login ou mudança de privilégio, expiração e invalidação no logout.
+Nas requisições seguintes, o navegador devolve o cookie. O servidor procura o registro correspondente e recupera a identidade de Ana.
 
-O identificador de sessão funciona temporariamente como uma credencial. Se for roubado, pode permitir **session hijacking** mesmo sem conhecimento da senha.
+O ID da sessão passa a funcionar como uma credencial temporária. Quem roubar uma cópia válida poderá tentar reutilizá-la sem conhecer a senha. Por isso, ele precisa ser imprevisível, protegido durante o transporte, renovado depois do login e invalidado no logout.
 
-## Tokens
+Os atributos do cookie têm funções diferentes:
 
-Um token é um valor que representa autorização, identidade ou estado. Na autenticação baseada em tokens, o cliente apresenta o token a cada chamada, frequentemente no cabeçalho:
+- `Secure`: envia o cookie somente por HTTPS;
+- `HttpOnly`: impede que JavaScript leia diretamente seu valor;
+- `SameSite`: limita alguns envios iniciados por outros sites e ajuda na defesa contra CSRF.
+
+Esses atributos são camadas de proteção. Eles não substituem expiração, invalidação, renovação do ID nem controles específicos contra CSRF.
+
+### Token apresentado pelo cliente
+
+Em outra arquitetura, o cliente recebe um token e o apresenta a cada chamada:
 
 ```http
 Authorization: Bearer <token>
 ```
 
-Alguns tokens são opacos e precisam ser consultados no servidor; outros, como JWTs, carregam claims verificáveis. “Stateless” não significa “sem estado em todo o sistema”: revogação, refresh tokens, dispositivos e logout podem exigir estado. A forma segura de armazenar e transportar tokens depende da arquitetura e das ameaças; exposição a XSS, CSRF e vazamentos deve ser considerada.
+Um token opaco é apenas um valor que o servidor precisa consultar. Um token autocontido, como um JWT assinado, carrega afirmações que podem ser verificadas pelo destinatário.
 
 | Aspecto | Sessão no servidor | Token autocontido assinado |
 |---|---|---|
-| Estado principal | Registro mantido pelo servidor | Claims no token |
-| Revogação imediata | Geralmente direta | Pode exigir lista, versão ou validade curta |
-| Escala/distribuição | Pode exigir armazenamento compartilhado | Verificação pode ser distribuída |
-| Risco central | Roubo/fixação do ID de sessão | Roubo, validação incorreta ou chave comprometida |
+| Onde fica o estado principal | No armazenamento do servidor | Dentro das afirmações do token |
+| Como o servidor reconhece o usuário | Consulta o ID da sessão | Valida assinatura e afirmações |
+| Revogação imediata | Em geral, simples | Pode exigir lista, versão ou validade curta |
+| Risco se for roubado | Reutilização da sessão | Reutilização do token até expirar ou ser revogado |
 
-Consulte [JSON Web Tokens](jwt/jwt.md) para estudar um formato de token assinado.
+“Autocontido” não significa “sem estado em todo o sistema”. Logout, refresh tokens, dispositivos conectados e revogação frequentemente exigem algum estado no servidor.
 
-## Fatores de autenticação
+Veja [JSON Web Token](jwt/jwt.md) para estudar esse formato em detalhes.
 
-- **Something you know**: algo que a pessoa sabe, como senha ou PIN.
-- **Something you have**: algo que possui, como security key, smart card ou aplicativo autenticador.
-- **Something you are**: característica biométrica, como impressão digital ou reconhecimento facial.
+## Fatores de autenticação e MFA
 
-**MFA** (multi-factor authentication) exige fatores de categorias independentes. Senha mais PIN continua sendo apenas um fator de conhecimento. **2FA** é o caso específico de MFA que usa exatamente dois fatores; MFA pode usar dois ou mais. A independência importa: comprometer um fator não deveria comprometer automaticamente o outro.
+Um fator é o tipo de evidência apresentado:
 
-Recuperação de conta, troca e desativação de fatores precisam ser tão protegidas quanto o login, pois podem virar caminhos de bypass.
+- **algo que você sabe**: senha ou PIN;
+- **algo que você possui**: chave física, smart card ou aplicativo autenticador;
+- **algo que você é**: característica biométrica.
 
-## Armazenamento seguro de senhas
+**MFA** exige fatores de categorias independentes. Senha mais PIN são dois segredos, mas pertencem à mesma categoria (“algo que você sabe”); portanto, não formam MFA por si só. **2FA** é o caso de MFA com exatamente dois fatores.
 
-O servidor não precisa recuperar a senha original: precisa verificar se uma tentativa corresponde ao valor cadastrado. Por isso, senhas não devem ser armazenadas em texto puro nem com criptografia reversível. Deve-se usar uma função própria para **password hashing**, com `salt` único e custo configurável, como Argon2id, scrypt, bcrypt ou PBKDF2 conforme a plataforma e seus requisitos.
+O segundo fator só é útil se não puder ser facilmente ignorado. Cadastro, troca, recuperação e desativação do MFA precisam de proteção equivalente à do login.
 
-Fluxo simplificado:
+## Como senhas devem ser armazenadas
+
+O servidor não precisa recuperar a senha original. Ele precisa apenas verificar se a tentativa atual corresponde à senha cadastrada. Por isso, senhas não devem ser salvas em texto puro, Base64 ou criptografia reversível.
+
+O fluxo correto usa uma função própria para **password hashing**:
 
 ```text
-cadastro: senha + salt único -> password hash -> banco de dados
-login:    tentativa + salt armazenado -> novo hash -> comparação segura
+Cadastro:
+senha + salt único -> função de password hashing -> hash armazenado
+
+Login:
+tentativa + salt armazenado -> mesma função -> comparação com o hash
 ```
 
-Um hash criptográfico comum e rápido, como SHA-256 isolado, não é adequado para armazenar senhas: rapidez favorece tentativas offline em massa. O `salt` não precisa ser secreto; ele impede que hashes iguais revelem senhas iguais e dificulta tabelas pré-computadas. Um `pepper` opcional é um segredo separado do banco e não substitui `salt` nem uma função adequada.
+- o `salt` é um valor único para cada senha e pode ser armazenado junto com o hash;
+- a função deve ser deliberadamente custosa, para reduzir a velocidade de tentativas offline;
+- algoritmos apropriados incluem Argon2id, scrypt, bcrypt e PBKDF2, conforme a plataforma;
+- SHA-256 isolado é rápido demais e não é adequado para esse uso;
+- um `pepper` opcional é um segredo guardado fora do banco, mas não substitui o `salt` nem o algoritmo correto.
 
-## Principais riscos
+## Onde as falhas costumam aparecer
 
-- enumeração de usuários por mensagens ou tempos diferentes;
-- senhas fracas, reutilizadas ou vazadas;
-- brute force, password spraying e credential stuffing;
-- ausência ou bypass de MFA;
-- recuperação de conta mais fraca que o login;
-- sessões previsíveis, não rotacionadas ou que continuam válidas após logout;
-- tokens expostos, excessivamente longos ou validados de forma incompleta;
-- armazenamento inadequado de senhas e segredos;
-- falhas de autorização após um login válido;
-- falta de monitoramento, alertas e resposta a atividades anômalas.
+| Etapa | Exemplo de falha |
+|---|---|
+| Identificação da conta | Respostas revelam quais usuários existem |
+| Verificação da senha | Tentativas ilimitadas ou senhas fracas |
+| Segundo fator | Etapa de MFA pode ser ignorada |
+| Recuperação | Link previsível ou pergunta fácil de descobrir |
+| Criação da sessão | ID antigo não é renovado após o login |
+| Uso da sessão | Cookie ou token é exposto |
+| Encerramento | Logout não invalida a sessão no servidor |
+| Autorização | Usuário autenticado acessa recurso que não lhe pertence |
 
-Veja o [índice de vulnerabilidades](vulnerabilities/README.md) para aprofundar esses problemas.
+O [catálogo de vulnerabilidades](vulnerabilities/README.md) aprofunda cada caso.
+
+## Perguntas para minha revisão
+
+Antes de avançar, eu devo conseguir explicar:
+
+1. por que informar um e-mail não prova identidade;
+2. por que um session ID precisa ser protegido como uma senha temporária;
+3. por que dois segredos de conhecimento não formam MFA;
+4. por que SHA-256 puro é inadequado para armazenar senhas;
+5. por que login válido não elimina a necessidade de autorização.
 
 ## Referências
 

@@ -1,31 +1,57 @@
-# Atividade prática — Fluxo de JWT com HS256 e RS256
+# Minha atividade prática: de HMAC a um JWT assinado
 
-Esta atividade constrói e valida JWSs compactos sem uma biblioteca JWT. O objetivo é tornar visíveis JSON, Base64URL, signing input e assinatura. Os exemplos são didáticos: não implementam toda a validação de claims, gestão de chaves e tratamento de erros exigidos em produção.
+Esta atividade torna visíveis os elementos que a teoria costuma esconder. O primeiro script demonstra o núcleo criptográfico do HS256, o HMAC. O segundo monta e valida um JWT completo com RS256.
 
-## Estrutura
+Os exemplos são didáticos. Em produção, use uma biblioteca JWT madura, uma política completa de validação de claims e gerenciamento seguro de chaves.
+
+## Estrutura atual
 
 ```text
 practical/
 ├── README.md
 ├── hs256-flow/
-│   └── main.py
+│   └── jwt_hs256.py
 └── rs256-flow/
     └── main.py
 ```
 
-- [Código HS256](hs256-flow/main.py)
-- [Código RS256](rs256-flow/main.py)
-- Teoria: [JWT](../jwt.md), [HS256](../hs256.md), [RS256](../rs256.md) e [HS256 vs RS256](../hs256-vs-rs256.md)
+- [Exemplo de HMAC-SHA-256](hs256-flow/jwt_hs256.py)
+- [Fluxo completo de JWT com RS256](rs256-flow/main.py)
 
-## Pré-requisitos e execução
+## Parte 1: entenda o HMAC usado pelo HS256
 
-HS256 usa somente a biblioteca padrão:
+Execute:
 
 ```bash
-python3 web-security/authentication/jwt/practical/hs256-flow/main.py
+python3 web-security/authentication/jwt/practical/hs256-flow/jwt_hs256.py
 ```
 
-RS256 usa o pacote `cryptography` para executar RSA com primitivas seguras. O programa ainda monta e separa o JWT explicitamente:
+O script realiza três conversões:
+
+```text
+mensagem em texto -> bytes ---+
+                              +-> HMAC-SHA-256 -> código hexadecimal
+chave em texto ----> bytes ---+
+```
+
+Observe que:
+
+1. a mensagem continua existindo; HMAC não a criptografa;
+2. a chave participa do cálculo;
+3. mudar um caractere da mensagem ou da chave muda o resultado;
+4. quem não possui a mesma chave não consegue reproduzir o código esperado.
+
+Para fixar, posso alterar `message` e `key`, uma por vez, e comparar as saídas. O valor hexadecimal impresso representa bytes do HMAC de forma legível; ele ainda não é um JWT.
+
+No HS256, o conteúdo passado ao HMAC seria:
+
+```text
+base64url(header) + "." + base64url(payload)
+```
+
+## Parte 2: acompanhe um JWT RS256 completo
+
+O exemplo depende do pacote `cryptography`:
 
 ```bash
 python3 -m venv .venv
@@ -34,139 +60,86 @@ python3 -m pip install cryptography
 python3 web-security/authentication/jwt/practical/rs256-flow/main.py
 ```
 
-As chaves RSA são geradas em memória a cada execução e não são gravadas. Em produção, private keys exigem armazenamento protegido, controle de acesso e rotação.
+O programa gera pares de chaves temporários em memória. Nenhuma chave é gravada no disco.
 
-## Base comum: serialização e Base64URL
+### Etapa A: serialização
 
-Os dois programas:
-
-1. criam dicionários Python para header e payload;
-2. serializam JSON de forma compacta e determinística;
-3. convertem os bytes com Base64URL;
-4. removem o padding `=` da representação;
-5. unem as duas partes com ponto.
+Header e payload começam como dicionários Python. O programa os transforma em JSON compacto e depois em bytes UTF-8:
 
 ```text
-Header -> JSON -> bytes -> Base64URL --+
-                                         +-> signing_input
+dicionário -> JSON -> bytes
+```
+
+### Etapa B: Base64URL
+
+Os bytes são representados com Base64URL e o padding opcional `=` é removido:
+
+```text
+Header  -> JSON -> bytes -> Base64URL --+
+                                          +-> signing input
 Payload -> JSON -> bytes -> Base64URL --+
 ```
 
-O código assina exatamente os bytes ASCII de:
+O resultado ainda pode ser decodificado. Nenhum segredo foi aplicado até aqui.
+
+### Etapa C: assinatura
+
+As duas partes são unidas com um ponto. A chave privada RSA assina exatamente esses bytes usando SHA-256 e PKCS #1 v1.5:
 
 ```text
-base64url(header) + "." + base64url(payload)
+signing input + chave privada -> assinatura
 ```
 
-O JSON decodificado pode parecer igual e ainda ter outra representação de bytes. Na validação, usam-se as duas partes originais recebidas.
+A assinatura é convertida para Base64URL e acrescentada ao token como terceira parte.
 
-## Parte 1 — HS256
+### Etapa D: verificação
+
+O verificador separa as três partes, reconstrói o signing input original e usa a chave pública correspondente:
 
 ```text
-Header -> JSON -> Base64URL
-Payload -> JSON -> Base64URL
-                 |
-                 v
-       Header codificado + "." + Payload codificado
-                 |
-          Secret Key + HMAC-SHA-256
-                 |
-                 v
-       Signature -> Base64URL -> JWT
+signing input + assinatura + chave pública -> válida ou inválida
 ```
 
-Na validação:
+O script executa três casos:
 
-1. o token é separado em três partes;
-2. o signing input é reconstruído sem alterar as partes;
-3. HMAC-SHA-256 é executado com o mesmo segredo;
-4. a assinatura recebida é decodificada;
-5. `hmac.compare_digest` compara bytes sem encerramento antecipado baseado no primeiro byte diferente.
+1. token original com a chave pública correta: assinatura válida;
+2. payload alterado com a assinatura antiga: assinatura inválida;
+3. token original com outra chave pública: assinatura inválida.
 
-A mesma secret key assina e verifica. Consequentemente, todo verificador que conhece o segredo também consegue gerar tokens aceitos.
+## Conceitos que não devem ser misturados
 
-### Experimentos A e B
+| Conceito | O que faz | Usa segredo ou chave? |
+|---|---|---|
+| Base64URL | Muda a representação dos bytes | Não |
+| Hash | Produz um resumo de tamanho fixo | Não |
+| HMAC | Protege integridade com segredo compartilhado | Sim, um segredo |
+| Criptografia | Busca esconder o conteúdo | Sim |
+| Assinatura digital | Protege integridade e relaciona a origem à chave privada | Par de chaves |
 
-O programa cria um token válido e depois:
+Assinar não esconde. Nos exemplos de JWT, header e payload continuam legíveis.
 
-- **A — altera o payload**, preservando a assinatura original. O signing input muda e a assinatura falha;
-- **B — usa uma chave incorreta**. O HMAC calculado é diferente e a validação falha.
+## Meu roteiro de observação
 
-## Parte 2 — RS256
+Ao ler a saída do programa RS256, preciso localizar nesta ordem:
 
-```text
-Header + Payload -> Base64URL -> Signing Input
-                                      |
-                            RSA/SHA-256 + Private Key
-                                      |
-                                      v
-                              Signature -> JWT
-```
+1. os objetos originais;
+2. o JSON produzido;
+3. as representações Base64URL;
+4. o signing input;
+5. a assinatura em bytes e Base64URL;
+6. o token final;
+7. o resultado de cada tentativa de validação.
 
-Na validação:
+## O que eu preciso conseguir explicar ao final
 
-```text
-JWT -> partes -> Signing Input + Signature
-                              + Public Key
-                                      |
-                           RSA/SHA-256 Verification
-                                      |
-                                Valid / Invalid
-```
+- por que Base64URL é reversível;
+- qual conteúdo é assinado;
+- por que mudar o payload invalida a assinatura;
+- por que uma chave pública diferente falha;
+- por que a chave pública verifica, mas não assina;
+- por que uma assinatura válida não substitui a validação das claims.
 
-A **private key assina**; a **public key verifica**. A public key pode ser distribuída porque não contém a capacidade necessária para criar uma assinatura válida. O pacote `cryptography` aplica RSASSA-PKCS1-v1_5 com SHA-256; o código não tenta implementar RSA manualmente.
-
-O payload não é criptografado. RSA está sendo usado como esquema de assinatura digital.
-
-### Experimentos A e C
-
-O programa:
-
-- altera o payload e mantém a assinatura, que deixa de corresponder;
-- verifica com a public key do par correto, com sucesso;
-- verifica com a public key de outro par, sem sucesso.
-
-## Comparação final
-
-```text
-HS256                         RS256
-
-Secret Key                    Private Key
-    |                              |
-    v                              v
-Assina JWT                     Assina JWT
-    |                              |
-    v                              v
-Secret Key                    Public Key
-    |                              |
-    v                              v
-Verifica JWT                  Verifica JWT
-```
-
-HS256 é simétrico porque o mesmo segredo concede as capacidades de criar e verificar o MAC. RS256 usa assinatura assimétrica porque essas capacidades são separadas entre private key e public key.
-
-## Conceitos que não devem ser confundidos
-
-| Conceito | Finalidade | Reversível? | Usa chave? |
-|---|---|---|---|
-| Codificação | Representar dados em outro alfabeto, como Base64URL | Sim | Não |
-| Hashing | Produzir resumo de tamanho fixo | Não por projeto | Não |
-| HMAC | Integridade e autenticação com segredo compartilhado | Não | Uma secret key |
-| Criptografia | Proteger confidencialidade | Sim, com a chave apropriada | Sim |
-| Assinatura digital | Integridade e autenticidade com par assimétrico | Não “desfaz” para obter a mensagem | Private key assina; public key verifica |
-
-Assinar não esconde. Em ambos os exemplos, qualquer pessoa com o token pode decodificar header e payload.
-
-## Resultado esperado
-
-Ao acompanhar a saída e o código, verifique se você consegue explicar:
-
-- como as três partes são construídas;
-- o que forma o signing input;
-- por que Base64URL pode ser revertido;
-- por que mudar header ou payload invalida a assinatura;
-- quais chaves assinam e verificam em cada algoritmo;
-- por que validação de assinatura não substitui validação de claims.
+Volte à teoria de [JWT](../jwt.md), [HS256](../hs256.md), [RS256](../rs256.md) e [comparação dos algoritmos](../hs256-vs-rs256.md) quando algum passo não estiver claro.
 
 ## Referências
 

@@ -1,23 +1,53 @@
-# Authentication Security
+# Minhas anotações sobre segurança de autenticação
 
-**Authentication** (autenticação, ou AuthN) é o processo de verificar se uma entidade é quem afirma ser. Em uma aplicação web, isso normalmente significa relacionar uma requisição a uma identidade por meio de credenciais, como senha, chave de acesso ou fator biométrico.
+Neste módulo, organizo o que preciso entender sobre autenticação: como uma aplicação confirma uma identidade, mantém o usuário autenticado e protege esse acesso. Quando Ana informa seu e-mail e sua senha, o sistema precisa responder à pergunta: **“há evidência suficiente de que esta pessoa controla a conta de Ana?”**
 
-Autenticação é uma fronteira de segurança: uma falha pode permitir que outra pessoa assuma uma conta e acesse dados ou ações protegidas. Ela não deve ser confundida com **authorization** (autorização, ou AuthZ). Autenticação responde *“quem é você?”*; autorização responde *“o que essa identidade pode fazer?”*. Uma aplicação precisa aplicar as duas verificações.
+Essa confirmação não termina na tela de login. Depois de entrar, a aplicação ainda precisa reconhecer Ana nas próximas requisições, proteger sua sessão, permitir uma recuperação segura da conta e encerrar o acesso quando necessário.
 
-## Trilha de estudos
+## Meu mapa mental do processo
 
-1. [Authentication Basics](authentication-basics.md) — identidades, credenciais, login, sessões, tokens, fatores, MFA e senhas.
-2. [JWT](jwt/README.md) — índice do conteúdo sobre JSON Web Tokens.
-   - [Como um JWT funciona](jwt/jwt.md)
-   - [HS256](jwt/hs256.md)
-   - [RS256](jwt/rs256.md)
-   - [HS256 vs RS256](jwt/hs256-vs-rs256.md)
-   - [Atividade prática](jwt/practical/README.md)
-3. [Authentication Vulnerabilities](vulnerabilities/README.md) — catálogo numerado com 15 falhas de autenticação, identificação autorizada, impactos e mitigações.
+```text
+Pessoa apresenta uma credencial
+              |
+              v
+Aplicação confirma a identidade       <- autenticação
+              |
+              v
+Aplicação cria uma sessão ou token
+              |
+              v
+Aplicação decide o que ela pode fazer <- autorização
+```
 
-## Objetivos de aprendizagem
+Autenticação e autorização são controles diferentes. Um cliente pode estar corretamente autenticado e, ainda assim, não ter autorização para abrir a área administrativa.
 
-Ao concluir este módulo, o leitor deverá conseguir descrever um fluxo de login, diferenciar sessão de token, reconhecer fatores de autenticação, explicar como JWTs assinados são construídos e identificar controles defensivos contra falhas de autenticação.
+## Minha ordem de estudo
+
+1. [Fundamentos de autenticação](authentication-basics.md)
+   Aprenda o vocabulário essencial e acompanhe o caminho completo entre o login e uma requisição autenticada.
+
+2. [JSON Web Token (JWT)](jwt/README.md)
+   Entenda a estrutura `header.payload.signature`, o que a assinatura protege e as diferenças entre HS256 e RS256.
+
+3. [Atividade prática com JWT](jwt/practical/README.md)
+   Observe no código como Base64URL, o conteúdo assinado e as chaves participam da criação e da validação do token.
+
+4. [Vulnerabilidades de autenticação](vulnerabilities/README.md)
+   Estude 15 falhas comuns, com exemplos, formas seguras de identificação e medidas de proteção.
+
+Quando um termo em inglês ou uma sigla atrapalhar meu raciocínio, posso consultar o [glossário](glossary.md).
+
+## Como vou revisar este módulo
+
+Ao terminar cada página, eu devo conseguir responder sem consultar o texto:
+
+- qual problema esse mecanismo resolve?
+- em que momento a aplicação toma uma decisão de segurança?
+- qual informação precisa permanecer secreta?
+- o que um invasor ganharia se o controle falhasse?
+- qual defesa atua na causa da falha?
+
+Se essas respostas estiverem claras, os nomes técnicos deixam de ser apenas uma lista para memorizar e passam a representar mecanismos que eu realmente compreendi.
 
 ## Referências gerais
 

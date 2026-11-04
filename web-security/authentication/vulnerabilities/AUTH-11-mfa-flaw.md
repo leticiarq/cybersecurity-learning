@@ -1,72 +1,58 @@
-# AUTH-11 — MFA Flaw
+# AUTH-11 — Falha na autenticação multifator (MFA)
 
-## Overview
+## O que eu entendi, em uma frase
 
-Uma **MFA flaw** é uma falha na implementação de um fluxo que deveria exigir múltiplos fatores. O sistema anuncia MFA, mas uma etapa pode ser pulada, desvinculada da sessão ou validada apenas no cliente.
+A aplicação exibe ou solicita um segundo fator, mas permite ignorá-lo ou validá-lo de forma incorreta.
 
-Isso é diferente de **ausência de MFA**. Um sistema single-factor pode ser inadequado ao risco, mas não possui necessariamente um bypass de uma implementação existente.
+## Ponto essencial: uma tela não prova proteção
 
-## How It Works
+Considere este fluxo:
 
 ```text
-Senha válida -> estado "primeiro fator"
-                      |
-              etapa MFA esperada
-                      |
-       rota direta / estado manipulável / validação fraca
-                      |
-             sessão totalmente autenticada
+senha correta -> sessão parcialmente autenticada -> tela de MFA
+                            |
+                  acesso direto a /account
+                            |
+              servidor libera o recurso protegido
 ```
 
-O backend pode conceder sessão completa antes do segundo fator, confiar que o frontend fará o redirecionamento ou não vincular o desafio ao usuário e à transação.
+A interface mostrou o MFA, mas o servidor já concedeu uma sessão completa depois da senha. Ocultar a navegação no frontend não aplica o controle.
 
-## Example
+Outras falhas aparecem quando o desafio não está vinculado à mesma conta e sessão, quando um parâmetro controlado pelo cliente marca o fator como concluído ou quando recuperação e “lembrar dispositivo” oferecem um desvio mais fraco.
 
-Após validar a senha, uma aplicação mostra `/mfa`. Em laboratório, acessar diretamente `/account` funciona porque o backend já marcou a sessão como autenticada. A interface tem MFA; o controle server-side não.
+## Diferença que preciso lembrar: ausência e falha de MFA
 
-## Impact
+Um sistema que usa somente senha pode estar inadequado ao risco, mas não possui necessariamente um bug de bypass. Aqui, a vulnerabilidade está em uma implementação que deveria exigir múltiplos fatores e não aplica essa exigência corretamente.
 
-O defeito remove a proteção esperada contra senha comprometida e pode permitir account takeover. O impacto depende de o atacante já possuir o primeiro fator ou conseguir contornar todo o fluxo.
+## Por que preciso prestar atenção
 
-## How to Identify
+A falha remove a proteção esperada contra uma senha comprometida. Dependendo do fluxo, quem possui apenas o primeiro fator pode conseguir assumir a conta.
 
-Com contas próprias, mapeie estados antes e depois de cada fator. Teste navegação direta, APIs, mobile, recuperação, “remember device”, troca e desativação de fator. Verifique se desafios pertencem à mesma conta e transação e se tentativas são limitadas.
+## Como eu reconheceria em ambiente autorizado
 
-Comportamento esperado: nenhuma rota sensível aceita estado parcial. Vulnerável: frontend ou parâmetro controlável decide que MFA foi concluído.
+Com contas próprias, mapeie os estados antes e depois de cada fator. Confira navegação direta, APIs, aplicativo móvel, recuperação, “lembrar dispositivo”, troca e desativação do fator. Verifique também vínculo do desafio, expiração e limite de tentativas.
 
-## Mitigation
+Nenhuma rota sensível deve aceitar um estado parcialmente autenticado.
 
-- modele estados de autenticação no servidor;
-- conceda sessão completa somente após todos os fatores;
+## Como corrigir ou prevenir
+
+- mantenha os estados de autenticação no servidor;
+- conceda sessão completa somente depois de todos os fatores;
 - vincule desafio, conta, sessão e finalidade;
 - limite tentativas e expire desafios;
-- aplique MFA de modo consistente em todos os canais;
-- proteja enrolment, troca, recovery e desativação;
+- aplique MFA de forma consistente em todos os canais;
+- proteja cadastro, troca, recuperação e desativação dos fatores;
 - prefira fatores resistentes a phishing quando o risco justificar;
-- monitore mudanças e bypasses sem registrar códigos.
+- monitore mudanças sem registrar códigos secretos.
 
-## Related Attacks
+## O que eu preciso lembrar
 
-Uma falha pode resultar em [authentication bypass](AUTH-12-authentication-bypass.md). [Weak recovery](AUTH-09-weak-password-recovery.md) frequentemente contorna MFA. Limites de códigos pertencem também a [AUTH-04](AUTH-04-authentication-attempts.md).
+- MFA precisa ser aplicado no backend, não apenas mostrado na interface.
+- Estado parcial não deve alcançar recursos finais.
+- Recuperação e canais alternativos fazem parte do mesmo controle.
 
-## CWE
-
-Não existe uma CWE única para toda falha de MFA. [CWE-287 — Improper Authentication](https://cwe.mitre.org/data/definitions/287.html) pode corresponder quando a implementação aceita prova insuficiente. [CWE-308](https://cwe.mitre.org/data/definitions/308.html) descreve uso de single-factor onde múltiplos fatores eram necessários; não deve ser usado automaticamente para qualquer bug em MFA.
-
-## OWASP Relationship
-
-O OWASP Multifactor Authentication Cheat Sheet aborda enrolment, reset, fatores e bypasses. O OWASP ASVS contém requisitos de MFA no capítulo de Authentication.
-
-## Key Takeaways
-
-- Presença de uma tela MFA não prova enforcement.
-- Estado parcial nunca deve acessar recursos finais.
-- Recovery e canais alternativos fazem parte da implementação.
-- Ausência de MFA e MFA vulnerável não são a mesma falha.
-
-## References
+## Referências técnicas
 
 - [OWASP Multifactor Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html)
-- [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
-- [MITRE CWE-287](https://cwe.mitre.org/data/definitions/287.html)
-- [MITRE CWE-308](https://cwe.mitre.org/data/definitions/308.html)
+- [CWE-287 — Improper Authentication](https://cwe.mitre.org/data/definitions/287.html)
+- [CWE-308 — Use of Single-factor Authentication](https://cwe.mitre.org/data/definitions/308.html)

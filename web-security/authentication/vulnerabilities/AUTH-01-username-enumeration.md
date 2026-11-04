@@ -1,71 +1,64 @@
-# AUTH-01 — Username Enumeration
+# AUTH-01 — Enumeração de usuários
 
-## Overview
+## O que eu entendi, em uma frase
 
-**Username enumeration** ocorre quando respostas da aplicação permitem distinguir contas existentes de inexistentes. Em termos simples, o sistema confirma indiretamente “essa pessoa tem uma conta aqui”.
+A aplicação revela, por diferenças em suas respostas, se uma conta existe ou não.
 
-Tecnicamente, a diferença pode estar na mensagem, status HTTP, tamanho do corpo, redirecionamento, cabeçalhos ou sequência de telas. O código `AUTH-01` é apenas a convenção interna deste repositório.
+## Exemplo para eu fixar
 
-## How It Works
-
-Fluxos de login, cadastro, convite e recuperação consultam o cadastro de usuários. Quando seus caminhos externos não são equivalentes, a resposta funciona como um oráculo:
+Durante o login, o sistema responde:
 
 ```text
-Identificador -> Mecanismo de autenticação
-                         |
-             +-----------+-----------+
-             |                       |
-       Conta existente         Conta inexistente
-             |                       |
-      Resposta diferente -> Informação revelada
+ana@example.test       -> “Senha incorreta”
+naoexiste@example.test -> “Conta não encontrada”
 ```
 
-Uma mensagem genérica não basta se outros elementos continuam diferentes.
+Nenhuma senha foi descoberta. Mesmo assim, a primeira mensagem confirmou que Ana possui uma conta. Essa informação reduz o trabalho necessário para ataques posteriores.
 
-## Example
+## Como entendo o vazamento da informação
 
-Uma aplicação fictícia responde `401 "Senha incorreta"` para `ana@example.test`, mas `404 "Conta não encontrada"` para um endereço inexistente. A senha de Ana não foi descoberta, porém sua conta foi confirmada.
+```text
+Identificador informado
+          |
+          v
+  aplicação consulta a conta
+       /             \
+ existe             não existe
+    |                   |
+resposta A           resposta B
+       \             /
+        diferença observável
+```
 
-## Impact
+A diferença não precisa estar no texto. Ela pode aparecer no status HTTP, tamanho da resposta, cabeçalhos, redirecionamento ou próxima tela. Uma mensagem genérica não resolve o problema se os outros sinais continuam diferentes.
 
-O impacto direto é **information disclosure** e possível perda de privacidade. A lista de contas válidas reduz a incerteza de ataques posteriores, como phishing direcionado, password spraying e credential stuffing. Account takeover não é automático: depende de outra fraqueza ou credencial comprometida.
+## Por que preciso prestar atenção
 
-## How to Identify
+O impacto direto é divulgação de informação e possível perda de privacidade. Uma lista de contas válidas facilita phishing direcionado, password spraying e credential stuffing. A enumeração sozinha não fornece a senha e não causa automaticamente tomada da conta.
 
-Em avaliação autorizada, compare uma conta de teste conhecida com identificadores certamente inexistentes em todos os fluxos de identidade. Observe mensagem, status, comprimento, headers, redirecionamento e etapas seguintes.
+## Como eu reconheceria em ambiente autorizado
 
-Comportamento esperado: respostas externas equivalentes. Comportamento vulnerável: diferenças repetíveis que classificam a existência da conta. Variações exclusivamente temporais são tratadas em [AUTH-02](AUTH-02-timing-enumeration.md).
+Compare uma conta de teste conhecida com identificadores certamente inexistentes nos fluxos de login, cadastro, convite e recuperação. Mantenha os outros campos iguais e observe se as diferenças são repetíveis.
 
-## Mitigation
+O comportamento desejado é externamente equivalente. Se a diferença ocorrer apenas no tempo, consulte [AUTH-02](AUTH-02-timing-enumeration.md).
+
+## Como corrigir ou prevenir
 
 - use mensagens genéricas, como “credenciais inválidas”;
 - mantenha status, formato e navegação equivalentes;
-- em recuperação, informe que instruções serão enviadas *caso* a conta exista;
+- na recuperação, diga que as instruções serão enviadas **caso** a conta exista;
 - reduza diferenças de processamento observáveis;
-- aplique rate limiting e monitoramento em todos os fluxos de identidade;
-- mantenha detalhes diagnósticos apenas em logs protegidos, sem credenciais.
+- aplique limites e monitoramento a todos os fluxos de identidade;
+- deixe detalhes diagnósticos somente em logs protegidos, sem credenciais.
 
-## Related Attacks
+## O que eu preciso lembrar
 
-Enumeração pode fornecer alvos para [password spraying e brute force](AUTH-04-authentication-attempts.md), exploração de [senhas fracas](AUTH-03-weak-password-policy.md) e tentativas com [credenciais padrão](AUTH-15-default-credentials.md).
+- Nome de usuário não é senha, mas confirmar sua existência ajuda outros ataques.
+- Texto igual não basta se status, tamanho ou fluxo forem diferentes.
+- O teste deve usar contas e limites autorizados.
 
-## CWE
+## Referências técnicas
 
-[CWE-204 — Observable Response Discrepancy](https://cwe.mitre.org/data/definitions/204.html) descreve respostas diferentes que revelam estado interno. A correspondência é direta quando a existência da conta é inferida por diferenças observáveis.
-
-## OWASP Relationship
-
-O OWASP WSTG documenta o teste **WSTG-IDNT-04 — Account Enumeration and Guessable User Account**. O OWASP Authentication Cheat Sheet recomenda respostas genéricas e equivalentes para falhas de autenticação.
-
-## Key Takeaways
-
-- Username geralmente não é a senha, mas sua confirmação reduz o espaço de ataque.
-- Mensagem igual não resolve diferenças de status, tamanho ou fluxo.
-- Timing enumeration é um canal específico e possui análise própria.
-- Testes devem usar contas e limites autorizados.
-
-## References
-
-- [OWASP WSTG — Account Enumeration and Guessable User Account](https://wstg.owasp.org/latest/4-Web_Application_Security_Testing/03-Identity_Management/04-Account_Enumeration_and_Guessable_User_Account/)
+- [OWASP WSTG — Account Enumeration](https://wstg.owasp.org/latest/4-Web_Application_Security_Testing/03-Identity_Management/04-Account_Enumeration_and_Guessable_User_Account/)
 - [OWASP Authentication Cheat Sheet — Authentication Responses](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html#authentication-responses)
-- [MITRE CWE-204](https://cwe.mitre.org/data/definitions/204.html)
+- [CWE-204 — Observable Response Discrepancy](https://cwe.mitre.org/data/definitions/204.html)

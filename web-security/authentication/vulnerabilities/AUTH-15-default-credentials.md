@@ -1,69 +1,56 @@
-# AUTH-15 — Default Credentials
+# AUTH-15 — Credenciais padrão
 
-## Overview
+## O que eu entendi, em uma frase
 
-**Default credentials** são usernames, senhas ou chaves iniciais fornecidos com software, dispositivo ou implantação. A vulnerabilidade surge quando permanecem ativos e conhecidos ou iguais entre instalações.
+Uma conta continua usando o usuário, a senha ou a chave inicial conhecida do produto.
 
-O risco é especialmente alto em contas administrativas e interfaces de infraestrutura, pois combina descoberta fácil com privilégios elevados.
+## Exemplo para eu fixar
 
-## How It Works
+Um painel recém-instalado aceita `admin` com a senha publicada no manual. A equipe expôs o serviço antes de concluir a configuração. Qualquer pessoa que conheça a documentação pode tentar entrar com privilégios administrativos.
 
 ```text
-Produto/deployment -> credencial inicial conhecida
+produto instalado -> credencial inicial conhecida
                               |
-                     não alterada/desativada
+                   não foi trocada ou desativada
                               |
-                  login não autorizado
+                       acesso indevido
 ```
 
-O problema inclui contas de demonstração, credenciais de fabricante, senhas temporárias previsíveis e backdoors de manutenção esquecidos.
+Também entram nessa categoria contas de demonstração, senhas temporárias previsíveis e contas de manutenção esquecidas.
 
-## Example
+## Por que preciso prestar atenção
 
-Um painel recém-instalado aceita `admin` com a senha documentada no manual público. A implantação foi exposta antes da etapa de hardening, permitindo acesso administrativo.
+Credenciais padrão combinam baixo esforço de descoberta com, frequentemente, privilégios elevados. O resultado pode incluir leitura, alteração ou indisponibilidade de todo o sistema.
 
-## Impact
+## Como eu reconheceria em ambiente autorizado
 
-Pode produzir acesso não autorizado, frequentemente administrativo, afetando confidentiality, integrity e availability. O impacto real depende do privilégio e da exposição da interface.
+Inventarie produtos, contas iniciais e procedimentos de instalação. Consulte documentação oficial e configuração. Use o menor número possível de tentativas para evitar bloqueios e verifique também imagens, templates e automações de implantação.
 
-## How to Identify
+O comportamento seguro exige um segredo único durante a instalação ou mantém a conta desabilitada até que seja configurada.
 
-Em escopo autorizado, inventarie produtos, contas iniciais e procedimento de instalação. Consulte documentação oficial e configuração, usando tentativas mínimas para evitar lockout. Verifique contas de demonstração, templates e imagens de deployment.
+## Como corrigir ou prevenir
 
-Comportamento esperado: segredo único é definido na instalação ou a conta fica desabilitada até configuração. Vulnerável: credencial pública, compartilhada ou previsível permanece funcional.
+- não forneça uma credencial universal entre instalações;
+- exija um segredo único e forte no primeiro uso;
+- bloqueie a operação normal até a configuração segura;
+- remova ou desative contas de demonstração e manutenção;
+- use provisionamento seguro de segredos por instalação;
+- restrinja interfaces administrativas por rede e privilégio;
+- inclua a verificação no processo de implantação;
+- ao encontrar uma credencial padrão, rotacione-a e investigue o uso.
 
-## Mitigation
+## Uma diferença que preciso lembrar
 
-- não forneça credenciais universais;
-- exija segredo único e forte no primeiro uso;
-- bloqueie operação normal até a configuração segura;
-- desative ou remova contas de demonstração e manutenção;
-- use provisioning seguro para secrets por instalação;
-- limite interfaces administrativas por rede e privilégio;
-- inclua verificação no processo de deployment;
-- rotacione imediatamente credenciais encontradas e investigue uso.
+Rate limiting reduz o volume de tentativas, mas não corrige uma senha que já é pública. O problema é a permanência de uma credencial conhecida.
 
-## Related Attacks
+## O que eu preciso lembrar
 
-[Username enumeration](AUTH-01-username-enumeration.md) pode revelar contas administrativas. [AUTH-04](AUTH-04-authentication-attempts.md) reduz tentativas automatizadas, mas não corrige uma credencial padrão conhecida.
+- Credencial inicial não deve sobreviver à implantação.
+- Cada instalação precisa de segredo próprio.
+- Contas administrativas aumentam o impacto.
 
-## CWE
+## Referências técnicas
 
-[CWE-1392 — Use of Default Credentials](https://cwe.mitre.org/data/definitions/1392.html) corresponde diretamente ao uso de credenciais padrão. Quando a credencial também está fixa no código, [CWE-798](https://cwe.mitre.org/data/definitions/798.html) pode ser relevante, mas os conceitos não são idênticos.
-
-## OWASP Relationship
-
-O OWASP WSTG documenta **WSTG-ATHN-02 — Testing for Default Credentials** e inclui tanto produtos instalados quanto senhas iniciais previsíveis de novas contas.
-
-## Key Takeaways
-
-- Credenciais públicas não devem sobreviver ao deployment.
-- Segredos iniciais devem ser únicos por instalação.
-- Contas administrativas ampliam o impacto.
-- Rate limiting não compensa uma senha já conhecida.
-
-## References
-
-- [OWASP WSTG v4.2 — Testing for Default Credentials](https://wstg.owasp.org/v4.2/4-Web_Application_Security_Testing/04-Authentication_Testing/02-Testing_for_Default_Credentials/)
-- [MITRE CWE-1392](https://cwe.mitre.org/data/definitions/1392.html)
-- [MITRE CWE-798](https://cwe.mitre.org/data/definitions/798.html)
+- [OWASP WSTG — Default Credentials](https://wstg.owasp.org/v4.2/4-Web_Application_Security_Testing/04-Authentication_Testing/02-Testing_for_Default_Credentials/)
+- [CWE-1392 — Use of Default Credentials](https://cwe.mitre.org/data/definitions/1392.html)
+- [CWE-798 — Use of Hard-coded Credentials](https://cwe.mitre.org/data/definitions/798.html)

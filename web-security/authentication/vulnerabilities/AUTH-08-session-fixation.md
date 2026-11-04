@@ -1,70 +1,54 @@
-# AUTH-08 — Session Fixation
+# AUTH-08 — Fixação de sessão
 
-## Overview
+## O que eu entendi, em uma frase
 
-**Session fixation** ocorre quando a aplicação aceita, depois do login, um identificador de sessão que já existia antes da autenticação. Se outra pessoa conhece ou controla esse ID, pode reutilizá-lo após a vítima entrar.
+A aplicação mantém, depois do login, um ID de sessão que já era conhecido antes da autenticação.
 
-Isso difere de **session hijacking**: hijacking é a tomada de uma sessão já autenticada; fixation prepara ou conhece o ID antes e espera que ele se torne autenticado.
-
-## How It Works
+## Sequência que preciso visualizar
 
 ```text
-ID conhecido antes do login
-            |
-      vítima autentica
-            |
-servidor preserva o mesmo ID
-            |
-ID conhecido agora representa a vítima
+1. Um ID de sessão é conhecido antes do login
+2. A vítima autentica usando esse mesmo ID
+3. O servidor associa a identidade ao ID antigo
+4. Quem já conhecia o ID tenta reutilizá-lo
 ```
 
-A raiz é não regenerar o identificador na mudança de estado anônimo para autenticado, ou em mudanças relevantes de privilégio.
+Imagine uma loja que cria uma sessão anônima para o carrinho. Ana faz login, mas o backend apenas acrescenta sua identidade ao mesmo registro em vez de emitir um novo ID. Uma cópia anterior daquele ID passa a representar a conta autenticada.
 
-## Example
+## Diferença que preciso lembrar: fixação e sequestro
 
-Uma loja cria um cookie para o carrinho anônimo. Após o login de Ana, o backend associa a identidade ao mesmo ID em vez de emitir outro. Em laboratório, uma cópia pré-login passa a acessar a área autenticada.
+- **Fixação de sessão:** o ID é preparado ou conhecido antes do login e não é renovado.
+- **Sequestro de sessão:** um ID que já estava autenticado é roubado.
 
-## Impact
+A fixação pode terminar em sequestro, mas o momento em que o ID se torna conhecido é diferente.
 
-Pode resultar em session takeover, com acesso à confidentiality e integrity da conta conforme seus privilégios. A senha não precisa ser descoberta.
+## Por que preciso prestar atenção
 
-## How to Identify
+A falha pode permitir acesso à conta sem descobrir a senha. O impacto depende dos privilégios que a sessão recebe.
 
-Com conta e navegador próprios, registre o ID antes do login, autentique-se e compare o valor depois. Verifique também MFA, reautenticação e elevação de privilégio. A simples igualdade é um sinal; confirme se a cópia anterior realmente recebe estado autenticado.
+## Como eu reconheceria em ambiente autorizado
 
-Comportamento esperado: o ID anterior é invalidado e outro é emitido. Vulnerável: o mesmo ID conserva continuidade e privilégios.
+Em uma conta e navegador próprios, registre o ID antes do login e compare com o valor depois. Repita a observação em MFA, reautenticação e elevação de privilégio.
 
-## Mitigation
+A igualdade dos valores é um sinal, mas confirme se a cópia anterior realmente ganhou o estado autenticado. Algumas aplicações mantêm um identificador externo e renovam com segurança outro valor interno.
 
-- invalide a sessão anterior e gere novo ID após autenticação;
-- regenere também após reautenticação e mudança de privilégio;
+## Como corrigir ou prevenir
+
+- invalide a sessão anônima e gere um novo ID após autenticação;
+- renove também após reautenticação e mudança de privilégio;
 - gere IDs imprevisíveis;
-- não aceite IDs de sessão por URL;
+- não aceite IDs de sessão em URLs;
 - use cookies com atributos defensivos e escopo restrito;
-- evite copiar estado autenticado para um identificador controlável;
-- teste todas as rotas e mecanismos de login.
+- teste todos os mecanismos e canais de login.
 
-## Related Attacks
-
-Fixation pode levar a session hijacking, mas não é sinônimo dele. [Insecure session cookies](AUTH-06-session-cookie.md) podem facilitar a definição ou exposição do ID; [improper invalidation](AUTH-07-session-invalidation.md) prolonga sua utilidade.
-
-## CWE
-
-[CWE-384 — Session Fixation](https://cwe.mitre.org/data/definitions/384.html) é a correspondência direta.
-
-## OWASP Relationship
-
-O OWASP WSTG documenta **WSTG-SESS-03 — Session Fixation** e recomenda renovar o token após autenticação. O Session Management Cheat Sheet faz a mesma distinção de ciclo de vida.
-
-## Key Takeaways
+## O que eu preciso lembrar
 
 - O problema começa antes do login.
-- O ID deve mudar quando a identidade ou privilégio muda.
-- Fixation e hijacking estão relacionados, mas não são sinônimos.
-- Gerar IDs fortes não elimina a necessidade de rotação.
+- ID forte ainda precisa ser renovado quando a identidade ou o privilégio muda.
+- A sessão antiga deve deixar de ser aceita.
 
-## References
+## Referências técnicas
 
 - [OWASP WSTG — Session Fixation](https://wstg.owasp.org/latest/4-Web_Application_Security_Testing/06-Session_Management/03-Session_Fixation/)
 - [OWASP Session Management Cheat Sheet — Renew the Session ID](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html#renew-the-session-id-after-any-privilege-level-change)
-- [MITRE CWE-384](https://cwe.mitre.org/data/definitions/384.html)
+- [CWE-384 — Session Fixation](https://cwe.mitre.org/data/definitions/384.html)

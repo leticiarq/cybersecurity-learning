@@ -1,68 +1,55 @@
-# AUTH-12 — Authentication Bypass
+# AUTH-12 — Bypass de autenticação
 
-## Overview
+## O que eu entendi, em uma frase
 
-**Authentication bypass** permite acessar total ou parcialmente uma função protegida sem completar a prova de identidade exigida.
+Uma função protegida pode ser usada sem concluir a prova de identidade exigida.
 
-Nem toda vulnerabilidade de autenticação é um bypass. Enumeração apenas revela contas; senha fraca ainda exige uma credencial. Bypass significa que uma validação necessária foi ausente, ignorada ou satisfeita por dado não confiável.
+## Exemplo para eu fixar
 
-## How It Works
+A interface obriga o usuário a entrar antes de mostrar `/reports`. Porém, a API `/api/reports` foi publicada sem o middleware de autenticação. Digitar a rota diretamente contorna a tela e acessa os dados.
 
 ```text
-Requisição -> deveria verificar autenticação -> recurso protegido
+requisição -> verificação de autenticação -> recurso protegido
                          |
-          validação ausente ou controlada pelo cliente
+             ausente ou controlada pelo cliente
                          |
-                  acesso concedido
+                  acesso sem login
 ```
 
-Causas comuns incluem middleware ausente em uma rota, validação apenas em JavaScript, endpoints alternativos com política diferente ou confiança em parâmetros como `authenticated=true`.
+Outras causas incluem validação somente em JavaScript, endpoint antigo com política diferente e confiança em parâmetros como `authenticated=true`.
 
-## Example
+## Diferença que preciso lembrar: falha e bypass
 
-A interface exige login antes de abrir `/reports`, mas a API `/api/reports` não executa o middleware de autenticação. Ocultar o link no frontend não protege o endpoint.
+Enumeração revela que uma conta existe. Senha fraca ainda exige acertar uma credencial. Bypass significa que uma verificação obrigatória foi ignorada, ausente ou satisfeita por informação não confiável.
 
-## Impact
+Também é importante separar autenticação de autorização. Se o usuário fez login, mas acessou dados de outra pessoa, a raiz provavelmente está na autorização.
 
-Pode causar acesso não autenticado a dados e operações, afetando confidentiality e integrity. Account takeover é uma possibilidade quando o bypass concede contexto de outro usuário, mas não é consequência obrigatória de todo caso.
+## Por que preciso prestar atenção
 
-## How to Identify
+O impacto pode variar de leitura de dados sem login até execução de operações administrativas. Quando o bypass cria o contexto de outro usuário, pode resultar em tomada de conta.
 
-Em avaliação autorizada, inventarie endpoints e estados de autenticação. Compare web, API, mobile e versões antigas; remova ou altere credenciais próprias e confirme enforcement server-side. Diferencie falha de autenticação de falha de autorização após login.
+## Como eu reconheceria em ambiente autorizado
 
-Comportamento esperado: toda rota protegida rejeita estado ausente, parcial ou inválido. Vulnerável: uma variação de endpoint ou estado controlável concede acesso.
+Inventarie endpoints e estados de autenticação. Compare web, API, mobile e versões antigas. Com credenciais próprias, teste a ausência, expiração ou estado parcial da sessão e confirme se a rejeição ocorre no servidor.
 
-## Mitigation
+## Como corrigir ou prevenir
 
-- centralize enforcement em middleware ou gateway testado;
-- aplique deny by default;
+- centralize o controle em middleware ou gateway testado;
+- adote negação por padrão;
 - valide sessão e fatores no servidor;
-- não confie em flags, headers ou cookies controláveis sem integridade;
-- mantenha política consistente entre canais;
-- teste rotas novas e alternativas automaticamente;
-- separe autenticação de autorização e aplique ambas.
+- não confie em flags, cookies ou headers sem integridade;
+- mantenha política consistente entre canais e versões;
+- teste automaticamente rotas novas e alternativas;
+- aplique autenticação e autorização como decisões separadas.
 
-## Related Attacks
+## O que eu preciso lembrar
 
-[MFA flaws](AUTH-11-mfa-flaw.md) e [weak recovery](AUTH-09-weak-password-recovery.md) podem criar bypasses. Session prediction e fixation são mecanismos diferentes, ainda que também resultem em acesso indevido.
+- Esconder um link não protege um endpoint.
+- Toda rota protegida deve rejeitar estado ausente, parcial ou inválido.
+- Login válido não substitui autorização.
 
-## CWE
-
-[CWE-287 — Improper Authentication](https://cwe.mitre.org/data/definitions/287.html) descreve prova de identidade insuficiente ou incorretamente validada. É apropriada quando a raiz está na autenticação; falhas puramente de autorização exigem classificação diferente.
-
-## OWASP Relationship
-
-O OWASP WSTG documenta **WSTG-ATHN-04 — Bypassing Authentication Schema** e **WSTG-ATHN-10 — Weaker Authentication in Alternative Channel**.
-
-## Key Takeaways
-
-- Navegação no frontend não é controle de segurança.
-- Todos os endpoints devem aplicar a mesma política.
-- Authentication bypass não é rótulo para qualquer falha de login.
-- Autenticação válida não substitui autorização.
-
-## References
+## Referências técnicas
 
 - [OWASP WSTG — Bypassing Authentication Schema](https://wstg.owasp.org/latest/4-Web_Application_Security_Testing/04-Authentication/04-Bypassing_Authentication_Schema/)
 - [OWASP WSTG — Weaker Authentication in Alternative Channel](https://wstg.owasp.org/latest/4-Web_Application_Security_Testing/04-Authentication/10-Weaker_Authentication_in_Alternative_Channel/)
-- [MITRE CWE-287](https://cwe.mitre.org/data/definitions/287.html)
+- [CWE-287 — Improper Authentication](https://cwe.mitre.org/data/definitions/287.html)

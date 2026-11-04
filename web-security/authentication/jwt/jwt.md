@@ -1,160 +1,173 @@
-# JSON Web Tokens (JWT)
+# Como um JWT funciona — minhas anotações
 
-## O que é e para que serve
+## Primeiro eu preciso entender a finalidade
 
-**JSON Web Token (JWT)** é um formato compacto definido pela RFC 7519 para transportar **claims** entre partes. Claims são afirmações como “o sujeito deste token é o usuário 42” ou “este token expira em determinado instante”.
+Suponha que um serviço de login confirme a identidade de Ana e precise informar a uma API que ela é a usuária `123`. Em vez de a API perguntar ao serviço de login a cada requisição, Ana pode apresentar um token assinado com essa informação.
 
-JWT descreve o formato, não uma estratégia completa de autenticação. Em APIs, um JWT assinado pode ser usado como access token porque o destinatário consegue verificar sua integridade e procedência. Ele também aparece em protocolos como OpenID Connect. Nem todo token é JWT, e nem todo JWT deve ser usado como credencial.
+O token carrega afirmações, por exemplo:
 
-Neste estudo, “JWT assinado” representa um JWS em serialização compacta:
+```text
+“O emissor login.example afirma que o usuário 123
+pode usar a API pedidos.example até as 10:30.”
+```
+
+Essas afirmações são chamadas de **claims**. Um JSON Web Token (JWT) define uma forma compacta de transportá-las. Quando o JWT é assinado, a API consegue verificar se o conteúdo foi alterado e se foi produzido por alguém que controla a chave esperada.
+
+## As três partes
+
+Um JWT assinado normalmente usa a serialização compacta de JWS:
 
 ```text
 base64url(header).base64url(payload).base64url(signature)
 ```
 
-Um JWT também pode ser criptografado como JWE, mas esse é outro formato e não é o foco aqui.
+### 1. Header: como o token foi processado
 
-## As três partes
-
-### Header
-
-Metadados que orientam o processamento. Em um token HS256:
+O header contém metadados. Um exemplo com HS256 é:
 
 ```json
 {"alg":"HS256","typ":"JWT"}
 ```
 
-`alg` declara o algoritmo usado. O verificador não deve aceitar cegamente esse valor: a aplicação deve manter uma lista explícita de algoritmos esperados para aquele contexto.
+- `alg` informa o algoritmo usado;
+- `typ` indica o tipo do objeto.
 
-### Payload
+O header ajuda no processamento, mas não deve decidir sozinho quais algoritmos são aceitos. O verificador precisa ter uma lista segura configurada previamente.
 
-Objeto JSON com claims:
+### 2. Payload: quais afirmações estão sendo feitas
 
 ```json
-{"sub":"1234567890","name":"Ana","iat":1710000000}
+{
+  "iss": "login.example",
+  "sub": "user-123",
+  "aud": "pedidos.example",
+  "exp": 1710001800
+}
 ```
 
-O payload não é um local seguro para senhas, chaves, documentos ou outros dados secretos.
+Esse conteúdo afirma quem emitiu o token, quem é o sujeito, qual serviço deve aceitá-lo e até quando ele vale. O payload não deve conter senha, chave, documento ou qualquer dado que precise permanecer secreto.
 
-### Signature
+### 3. Signature: proteção contra alteração
 
-A assinatura é calculada sobre os textos Base64URL exatos do header e do payload, incluindo o ponto:
+Primeiro, header e payload são convertidos para Base64URL e unidos por um ponto:
 
 ```text
 signing_input = base64url(header) + "." + base64url(payload)
 ```
 
-O algoritmo combina esse conteúdo com a chave apropriada. A assinatura resultante também é convertida para Base64URL e anexada ao token.
+O algoritmo usa esse texto e uma chave para gerar a terceira parte. Se alguém alterar um caractere do header ou do payload, o conteúdo assinado muda. A assinatura antiga deixa de corresponder.
 
 ## Base64URL não é criptografia
 
-Base64URL representa bytes usando caracteres seguros para URLs. Em relação ao Base64 tradicional, usa `-` e `_` no lugar de `+` e `/`, e normalmente omite `=` de preenchimento. Qualquer pessoa que receba o token consegue reverter essa codificação.
-
-> O payload de um JWT comum assinado **não está criptografado** apenas porque aparece em Base64URL.
-
-Codificação muda a representação; criptografia procura garantir confidencialidade com uma chave. A assinatura fornece integridade e autenticação da origem conforme o controle da chave, mas não esconde o conteúdo.
-
-## Claims
-
-A RFC define nomes de **registered claims**, cujo uso é opcional e dependente do perfil da aplicação:
-
-| Claim | Nome | Finalidade |
-|---|---|---|
-| `iss` | Issuer | Identifica quem emitiu o token |
-| `sub` | Subject | Identifica o sujeito do token |
-| `aud` | Audience | Identifica o destinatário pretendido |
-| `exp` | Expiration Time | Instante a partir do qual o token não deve ser aceito |
-| `nbf` | Not Before | Instante antes do qual o token não deve ser aceito |
-| `iat` | Issued At | Instante em que o token foi emitido |
-| `jti` | JWT ID | Identificador do token, útil em alguns controles de replay/revogação |
-
-Os valores de tempo são **NumericDate**, isto é, segundos desde 1970-01-01T00:00:00Z, desconsiderando leap seconds. Além dos registered claims, há claims públicos e privados definidos pelas partes. Um claim apenas informa algo; o verificador precisa conferir se ele satisfaz sua política.
-
-## Exemplo decomposto
-
-Para o header e o payload anteriores, as duas primeiras partes ficam:
+Base64URL apenas representa bytes com caracteres adequados para URLs. Qualquer pessoa que receba o token consegue decodificar as duas primeiras partes.
 
 ```text
-Header:
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
-
-Payload:
-eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkFuYSIsImlhdCI6MTcxMDAwMDAwMH0
-
-Signature:
-<resultado-base64url-da-assinatura>
+Codificação:  muda a representação; pode ser revertida sem segredo.
+Criptografia: busca esconder o conteúdo; exige a chave apropriada.
+Assinatura:   permite detectar alterações e verificar a origem.
 ```
 
-O token final une as três partes com pontos:
+Portanto:
+
+> Um JWT assinado protege a integridade do conteúdo, mas não sua confidencialidade.
+
+JWTs também podem ser usados dentro de estruturas criptografadas, como JWE, mas isso é um mecanismo diferente do JWS assinado estudado aqui.
+
+## Claims mais comuns
+
+| Claim | Pergunta respondida |
+|---|---|
+| `iss` (*issuer*) | Quem emitiu o token? |
+| `sub` (*subject*) | Sobre qual usuário ou entidade o token fala? |
+| `aud` (*audience*) | Qual serviço deve aceitar o token? |
+| `exp` (*expiration time*) | A partir de quando o token está expirado? |
+| `nbf` (*not before*) | A partir de quando o token pode ser usado? |
+| `iat` (*issued at*) | Quando ele foi emitido? |
+| `jti` (*JWT ID*) | Qual é o identificador deste token? |
+
+Os tempos usam **NumericDate**: quantidade de segundos desde `1970-01-01T00:00:00Z`. A presença de uma claim não garante nada sozinha. O destinatário precisa verificar se o valor corresponde à sua política.
+
+Exemplo: uma assinatura pode ser válida, mas a API ainda deve rejeitar um token cujo `aud` aponta para outro serviço.
+
+## Construção passo a passo
 
 ```text
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkFuYSIsImlhdCI6MTcxMDAwMDAwMH0.<assinatura>
+Header  -> JSON -> bytes -> Base64URL --+
+                                          +-> conteúdo a assinar
+Payload -> JSON -> bytes -> Base64URL --+          |
+                                                     v
+                                              algoritmo + chave
+                                                     |
+                                                     v
+                                                assinatura
 ```
 
-A assinatura real depende do algoritmo e da chave; portanto, o marcador não é um token utilizável. A [atividade prática](practical/README.md) gera tokens completos.
+Em detalhes:
 
-## Criação e envio
+1. o emissor cria o header e o payload;
+2. serializa os dois objetos como JSON;
+3. codifica seus bytes com Base64URL;
+4. une os resultados com `.`;
+5. assina exatamente esses bytes;
+6. codifica a assinatura com Base64URL;
+7. une as três partes com pontos.
 
-1. O emissor cria header e payload.
-2. Serializa cada objeto como JSON.
-3. Converte ambos para Base64URL.
-4. Concatena as partes com `.` para formar o signing input.
-5. Assina esse conjunto com o algoritmo e a chave configurados.
-6. codifica a assinatura em Base64URL e monta o token.
+A assinatura cobre as representações originais recebidas. O verificador não deve reconstruir outro JSON “equivalente”, pois espaços, ordem e codificação podem produzir bytes diferentes.
 
-Em uma API, um access token frequentemente é enviado assim:
+## Como o token chega à API
+
+Um access token costuma ser enviado no cabeçalho HTTP:
 
 ```http
-GET /profile HTTP/1.1
-Host: api.example
+GET /pedidos HTTP/1.1
+Host: pedidos.example
 Authorization: Bearer eyJ...
 ```
 
-`Bearer` significa que a posse do valor permite usá-lo. HTTPS é obrigatório para protegê-lo em trânsito, e o token não deve aparecer em URLs.
+`Bearer` significa que quem possui o valor pode apresentá-lo. Por isso, o token deve ser protegido como uma credencial: usar HTTPS, não aparecer em URLs e não ser registrado em logs.
 
-## Processo de validação
+## Validação passo a passo
 
-O recebimento de um token deve levar a uma sequência controlada:
+Receber um token não significa confiar nele. O destinatário deve:
 
-1. impor limites de tamanho e exigir exatamente três partes para um JWS compacto;
-2. decodificar e interpretar header e payload com segurança;
-3. exigir o algoritmo previamente configurado, sem aceitar `none` nem troca inesperada de família;
-4. selecionar uma chave confiável — nunca uma URL ou chave arbitrária controlada pelo token;
-5. verificar a assinatura sobre as duas primeiras partes originais;
-6. validar `iss`, `aud`, `exp`, `nbf` e demais claims exigidos pelo contexto;
-7. aplicar autorização usando dados validados, e não somente decodificados.
+1. limitar o tamanho e conferir a estrutura esperada;
+2. interpretar header e payload com segurança;
+3. exigir o algoritmo configurado para aquele contexto;
+4. selecionar uma chave proveniente de fonte confiável;
+5. verificar a assinatura sobre as partes originais;
+6. validar `iss`, `aud`, `exp`, `nbf` e todas as claims obrigatórias;
+7. aplicar autorização depois de validar a identidade e o contexto.
 
-Pode existir pequena tolerância de relógio (*clock skew*) configurada, mas ela não deve ampliar desnecessariamente a validade. O token deve ser rejeitado se expirado, ainda não válido, destinado a outra audiência ou emitido por uma fonte não confiável.
+Uma pequena tolerância de relógio pode ser necessária, mas não deve prolongar excessivamente a validade do token.
 
-## Por que uma alteração invalida a assinatura?
+## O que a assinatura garante — e o que não garante
 
-Header e payload codificados fazem parte do signing input. Alterar um caractere muda a entrada do algoritmo. Sem a chave de assinatura, não é possível produzir a assinatura correspondente ao novo conteúdo. Reaproveitar a assinatura antiga faz a verificação falhar.
-
-Isso detecta modificação, mas não impede leitura, cópia ou replay de um token válido. Um token roubado pode continuar utilizável até expirar ou ser revogado.
-
-## O que um JWT protege — e o que não protege
-
-| Pode oferecer | Não oferece automaticamente |
+| A assinatura pode ajudar a garantir | Ela não garante sozinha |
 |---|---|
-| Integridade do header e payload | Confidencialidade do conteúdo |
-| Autenticidade vinculada ao controle da chave | Prova de que quem apresenta o token é o usuário original |
-| Claims verificáveis sem consultar o emissor em cada requisição | Revogação, logout, autorização ou transporte seguro |
+| O conteúdo não foi alterado | O conteúdo permaneceu secreto |
+| Alguém com a chave apropriada produziu o token | Quem apresenta o token é seu usuário original |
+| As claims podem ser verificadas sem nova consulta ao emissor | O token não foi roubado ou copiado |
+| O token corresponde aos bytes assinados | Logout, revogação e autorização |
 
-## Cuidados de segurança
+Um token roubado pode ser reutilizado até expirar ou ser revogado. Uma assinatura válida também não torna verdadeiras claims que a aplicação deixou de validar.
 
-- Use biblioteca madura em produção; o código deste repositório é didático.
-- Fixe algoritmos aceitos e use a chave correta para cada emissor e finalidade.
-- Valide assinatura **e** claims obrigatórios.
-- Use chaves fortes, armazenamento seguro, rotação e identificadores de chave confiáveis.
-- Mantenha access tokens curtos e minimize claims.
-- Planeje revogação e rotação antes de adotar tokens autocontidos.
-- Não misture tokens de ambientes, clientes ou finalidades diferentes.
-- Evite registrar tokens; trate-os como credenciais.
+## Exemplo de alteração
 
-Continue em [HS256](hs256.md), [RS256](rs256.md) e [HS256 vs RS256](hs256-vs-rs256.md).
+Considere um payload com `"role":"user"`. Se alguém decodificar o token, trocar para `"role":"admin"` e mantiver a assinatura antiga, a verificação falhará. Para criar uma assinatura que corresponda ao novo conteúdo, seria necessário controlar a chave de assinatura.
+
+Isso é integridade. O conteúdo continuou legível durante todo o processo.
+
+## Perguntas para minha revisão
+
+- Por que Base64URL não protege um segredo?
+- Qual parte exata do token é assinada?
+- Por que assinatura válida não dispensa a validação de `aud` e `exp`?
+- Por que um token roubado ainda pode funcionar sem nenhuma alteração?
+
+Continue com [HS256](hs256.md) e [RS256](rs256.md).
 
 ## Referências
 
-- [RFC 7519 — JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519)
-- [RFC 7515 — JSON Web Signature (JWS)](https://www.rfc-editor.org/rfc/rfc7515)
+- [RFC 7519 — JSON Web Token](https://www.rfc-editor.org/rfc/rfc7519)
+- [RFC 7515 — JSON Web Signature](https://www.rfc-editor.org/rfc/rfc7515)
 - [RFC 8725 — JSON Web Token Best Current Practices](https://www.rfc-editor.org/rfc/rfc8725)

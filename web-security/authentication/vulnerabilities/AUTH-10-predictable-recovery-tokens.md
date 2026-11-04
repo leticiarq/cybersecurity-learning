@@ -1,70 +1,65 @@
-# AUTH-10 — Predictable Recovery Tokens
+# AUTH-10 — Token de recuperação previsível
 
-## Overview
+## O que eu entendi, em uma frase
 
-Um recovery token é uma credencial temporária que autoriza uma ação sensível. Se for previsível, reutilizável, duradouro ou mal vinculado, outra pessoa pode redefinir a senha da vítima.
+O valor que autoriza a troca de senha pode ser adivinhado, reutilizado ou aplicado à conta errada.
 
-Um token seguro deve ser aleatório, de uso único, ter validade curta, ser armazenado com proteção adequada e estar vinculado à conta e finalidade corretas.
+## Quatro propriedades que preciso avaliar separadamente
 
-## How It Works
+Um token de recuperação seguro precisa ser:
+
+| Propriedade | Pergunta |
+|---|---|
+| Imprevisível | Outra pessoa consegue adivinhar o valor? |
+| Vinculado | Ele vale somente para aquela conta e ação? |
+| Temporário | Expira em pouco tempo? |
+| De uso único | Deixa de funcionar após o reset? |
+
+Ter uma propriedade não compensa a ausência de outra. Um token aleatório ainda é inseguro se puder ser reutilizado indefinidamente.
+
+## Exemplo para eu fixar
 
 ```text
-Pedido de reset -> token gerado -> canal verificado
-                       |
-       baixa entropia / sem expiração / reuse
-                       |
-             reset não autorizado
+reset-1042
+reset-1043
+reset-1044
 ```
 
-Timestamp, ID sequencial e PRNG não criptográfico tornam tokens adivinháveis. Trocar o `user_id` mantendo o token indica vínculo incompleto.
+Uma sequência permite estimar valores seguintes. Timestamp, ID incremental e gerador pseudoaleatório não criptográfico produzem o mesmo tipo de risco. Em outro caso, o valor pode ser forte, mas continuar válido depois de usado.
 
-## Example
+```text
+pedido de reset -> token -> canal verificado -> nova senha
+                       |
+           previsível, sem vínculo ou sem expiração
+```
 
-Uma aplicação cria `reset-1042`, depois `reset-1043`. Em teste controlado, a sequência revela o próximo valor. Outro sistema gera token forte, mas aceita o mesmo link várias vezes após o primeiro reset.
+## Por que preciso prestar atenção
 
-## Impact
+Quem obtém um token válido pode trocar a senha e assumir a conta. Como links de recuperação aparecem em URLs, eles também podem vazar em histórico, logs ou cabeçalho `Referer`.
 
-Predição ou replay pode levar diretamente a account takeover. Tokens em URLs também podem vazar por logs, histórico ou referrer, ampliando o risco de credential exposure.
+## Como eu reconheceria em ambiente autorizado
 
-## How to Identify
+Use apenas contas próprias. Compare tokens sem tentar valores de terceiros. Observe comprimento, padrão aparente, conta vinculada, finalidade, expiração, uso único e invalidação depois de um novo pedido. Em revisão de código, confira o gerador e o armazenamento.
 
-Use apenas contas próprias. Compare tokens sem tentar valores de terceiros; observe comprimento, distribuição aparente, vínculo, expiração, uso único e invalidação após novo pedido ou reset. Revise o gerador e armazenamento em análise de código.
+## Como corrigir ou prevenir
 
-Comportamento esperado: valores imprevisíveis, escopo único e rejeição após uso/expiração. Vulnerável: padrões, reutilização ou troca de conta/finalidade.
-
-## Mitigation
-
-- gere tokens com CSPRNG e entropia suficiente;
-- aplique validade curta e uso único com atualização atômica;
-- vincule ao usuário, ação e transação;
+- gere valores com CSPRNG e entropia suficiente;
+- aplique validade curta e consumo atômico de uso único;
+- vincule token, usuário, ação e transação;
 - invalide tokens anteriores quando apropriado;
-- armazene apenas representação protegida quando possível;
-- entregue por canal previamente verificado e HTTPS;
-- não registre tokens completos;
-- aplique rate limiting sem depender dele para compensar baixa entropia.
+- armazene uma representação protegida quando possível;
+- entregue somente por canal verificado e HTTPS;
+- nunca registre o valor completo;
+- use rate limiting como camada adicional, não como compensação por baixa entropia.
 
-## Related Attacks
+## O que eu preciso lembrar
 
-É uma forma específica de [weak password recovery](AUTH-09-weak-password-recovery.md) e pode se combinar com [credential exposure](AUTH-14-credential-exposure.md) ou [username enumeration](AUTH-01-username-enumeration.md).
+- O token funciona como uma credencial temporária.
+- Entropia, vínculo, validade e uso único são controles diferentes.
+- Valor forte também precisa ser protegido contra vazamento.
 
-## CWE
-
-[CWE-330 — Use of Insufficiently Random Values](https://cwe.mitre.org/data/definitions/330.html) aplica-se à previsibilidade. [CWE-640](https://cwe.mitre.org/data/definitions/640.html) representa o mecanismo de recuperação fraco de forma mais ampla.
-
-## OWASP Relationship
-
-O OWASP Forgot Password Cheat Sheet requer tokens aleatórios, suficientemente longos, vinculados ao usuário, de uso único e com expiração. O WSTG cobre análise de tokens no teste de password reset.
-
-## Key Takeaways
-
-- Recovery token deve ser tratado como credencial temporária.
-- Entropia, vínculo, expiração e uso único são propriedades independentes.
-- Token forte ainda pode vazar por transporte ou logs.
-- Rate limiting não transforma token previsível em token seguro.
-
-## References
+## Referências técnicas
 
 - [OWASP Forgot Password Cheat Sheet — URL Tokens](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html#url-tokens)
-- [OWASP WSTG — Weak Password Change or Reset](https://wstg.owasp.org/latest/4-Web_Application_Security_Testing/04-Authentication/09-Weak_Password_Change_or_Reset_Functionalities/)
-- [MITRE CWE-330](https://cwe.mitre.org/data/definitions/330.html)
-- [MITRE CWE-640](https://cwe.mitre.org/data/definitions/640.html)
+- [CWE-330 — Use of Insufficiently Random Values](https://cwe.mitre.org/data/definitions/330.html)
+- [CWE-640 — Weak Password Recovery Mechanism](https://cwe.mitre.org/data/definitions/640.html)

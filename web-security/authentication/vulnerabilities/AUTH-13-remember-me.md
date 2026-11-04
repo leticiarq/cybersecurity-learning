@@ -1,71 +1,58 @@
-# AUTH-13 — Insecure Remember Me
+# AUTH-13 — “Lembrar de mim” inseguro
 
-## Overview
+## O que eu entendi, em uma frase
 
-“Remember Me” mantém acesso por um período maior que a sessão comum. Uma implementação insegura usa tokens previsíveis, permanentes, não revogáveis ou derivados diretamente de credenciais.
+O mecanismo de acesso persistente usa um token previsível, contém a senha ou não pode ser revogado.
 
-O mecanismo deve usar uma credencial persistente própria. Ele não deve guardar a senha do usuário no navegador nem construir um token reversível com username e password.
+## Como entendo o fluxo correto
 
-## How It Works
+“Lembrar de mim” mantém o acesso por mais tempo que uma sessão comum. Para isso, o navegador recebe uma credencial persistente própria:
 
 ```text
-Login + opção Remember Me -> token persistente
-                                  |
-                 retorna em visita futura
-                                  |
-              servidor cria nova sessão curta
+login + “lembrar de mim” -> token persistente aleatório
+                                      |
+                            visita futura apresenta o token
+                                      |
+                              servidor cria sessão curta
 ```
 
-O risco aumenta quando o mesmo token funciona indefinidamente, permanece válido após logout ou troca de senha, ou não é rotacionado depois do uso.
+Esse token não deve ser a senha nem uma transformação reversível de `usuário:senha`.
 
-## Example
+## Exemplo para eu fixar
 
-Uma aplicação grava Base64 de `email:password` em cookie por um ano. Base64 pode ser revertido e expõe a senha. Outra aplicação usa valor aleatório, mas aceita a mesma cópia após “sair de todos os dispositivos”, indicando falha de revogação.
+Uma aplicação grava Base64 de `email:senha` em um cookie por um ano. Base64 pode ser revertido e revela a senha. Em outro sistema, o valor é aleatório, mas a mesma cópia ainda funciona depois de “sair de todos os dispositivos”. Nesse caso, a falha está na revogação.
 
-## Impact
+O risco também aumenta quando o token nunca expira ou não é renovado depois do uso.
 
-Roubo do token pode conceder acesso persistente e account takeover. Armazenar senha no cookie também causa credential compromise que pode atingir outros serviços.
+## Por que preciso prestar atenção
 
-## How to Identify
+Uma cópia roubada pode conceder acesso persistente. Se o token contiver a senha, o vazamento ainda pode atingir outros serviços onde ela foi reutilizada.
 
-Com conta própria, inspecione formato, atributos e validade. Teste revogação após logout, mudança de senha e encerramento de dispositivos; observe rotação e criação de nova sessão. Não tente tokens pertencentes a terceiros.
+## Como eu reconheceria em ambiente autorizado
 
-Comportamento esperado: token opaco, aleatório, revogável e separado da senha. Vulnerável: dados previsíveis, credenciais incorporadas ou persistência sem controle.
+Com sua própria conta, inspecione formato, atributos e validade. Teste revogação após logout, troca de senha e encerramento de dispositivos. Observe se o token é rotacionado e se cria uma nova sessão curta.
 
-## Mitigation
+## Como corrigir ou prevenir
 
-- gere token aleatório de alta entropia;
-- armazene representação protegida server-side;
-- associe token a usuário, finalidade e registro de dispositivo;
-- rotacione após uso e detecte reuse quando possível;
+- gere um valor aleatório com alta entropia;
+- armazene no servidor apenas uma representação protegida quando possível;
+- vincule o token a usuário, finalidade e registro de dispositivo;
+- rotacione depois do uso e detecte reutilização quando aplicável;
 - aplique expiração e revogação;
 - invalide em eventos de risco;
-- use cookie `Secure`, `HttpOnly` e `SameSite` adequado;
-- exija reautenticação para operações sensíveis;
+- use cookie com `Secure`, `HttpOnly` e `SameSite` adequado;
+- exija reautenticação em operações sensíveis;
 - nunca armazene a senha no token.
 
-## Related Attacks
+## O que eu preciso lembrar
 
-O mecanismo amplia a janela de [session cookie exposure](AUTH-06-session-cookie.md) e depende de [session invalidation](AUTH-07-session-invalidation.md). Token previsível se relaciona aos princípios de [recovery token](AUTH-10-predictable-recovery-tokens.md), embora a finalidade seja diferente.
+- Token persistente é uma credencial diferente da senha.
+- Persistência aumenta a janela de uso depois de um vazamento.
+- O mecanismo precisa de expiração, rotação e revogação.
 
-## CWE
+## Referências técnicas
 
-Não há uma única CWE para toda implementação de Remember Me. [CWE-539 — Use of Persistent Cookies Containing Sensitive Information](https://cwe.mitre.org/data/definitions/539.html) aplica-se quando o cookie persistente contém informação sensível. Falhas de expiração podem se relacionar a [CWE-613](https://cwe.mitre.org/data/definitions/613.html).
-
-## OWASP Relationship
-
-O OWASP WSTG contém **Testing for Vulnerable Remember Password**. O Session Management Cheat Sheet fornece controles para cookies e ciclo de vida.
-
-## Key Takeaways
-
-- Remember Me não deve armazenar a senha.
-- Token persistente deve ser revogável e rotacionável.
-- Sessões de longa duração elevam o custo de um vazamento.
-- Operações sensíveis ainda podem exigir reautenticação.
-
-## References
-
-- [OWASP WSTG v4.2 — Testing for Vulnerable Remember Password](https://wstg.owasp.org/v4.2/4-Web_Application_Security_Testing/04-Authentication_Testing/05-Testing_for_Vulnerable_Remember_Password/)
+- [OWASP WSTG — Vulnerable Remember Password](https://wstg.owasp.org/v4.2/4-Web_Application_Security_Testing/04-Authentication_Testing/05-Testing_for_Vulnerable_Remember_Password/)
 - [OWASP Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
-- [MITRE CWE-539](https://cwe.mitre.org/data/definitions/539.html)
-- [MITRE CWE-613](https://cwe.mitre.org/data/definitions/613.html)
+- [CWE-539 — Persistent Cookies Containing Sensitive Information](https://cwe.mitre.org/data/definitions/539.html)
+- [CWE-613 — Insufficient Session Expiration](https://cwe.mitre.org/data/definitions/613.html)

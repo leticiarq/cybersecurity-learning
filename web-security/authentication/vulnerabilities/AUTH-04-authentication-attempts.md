@@ -1,72 +1,59 @@
-# AUTH-04 — Improper Restriction of Authentication Attempts
+# AUTH-04 — Tentativas de autenticação sem restrição adequada
 
-## Overview
+## O que eu entendi, em uma frase
 
-Esta vulnerabilidade ocorre quando o sistema não restringe adequadamente tentativas de autenticação. Em termos simples, a aplicação permite testar credenciais rápido demais ou por tempo demais.
+A aplicação permite testar credenciais rápido demais, por tempo demais ou por um canal que não aplica os limites esperados.
 
-O problema também existe quando um controle é fácil de contornar ou causa efeitos perigosos, como lockout permanente acionável por qualquer pessoa.
+## Três estratégias que preciso diferenciar
 
-## How It Works
+| Ataque | O que é testado |
+|---|---|
+| Brute force | Muitas senhas contra uma conta |
+| Password spraying | Poucas senhas comuns contra muitas contas |
+| Credential stuffing | Pares de usuário e senha obtidos em vazamentos |
+
+Sem restrições, o atacante consegue ampliar o volume:
 
 ```text
-Muitas tentativas -> endpoint de autenticação
+muitas tentativas -> login/API/MFA/recuperação
                            |
-                sem limite efetivo
+                    sem limite efetivo
                            |
-              guessing em escala
+                 adivinhação em escala
 ```
 
-Limitar somente por IP pode falhar diante de origens distribuídas. Limitar somente por conta pode facilitar denial of service. APIs, mobile, MFA e recuperação esquecidos criam canais alternativos.
+## Por que um único limite não basta
 
-## Example
+Limitar somente por IP pode falhar quando as requisições vêm de várias origens. Limitar somente por conta permite que qualquer pessoa bloqueie repetidamente a conta de uma vítima. Além disso, API, aplicativo móvel, MFA e recuperação podem formar canais alternativos.
 
-Em homologação, uma conta descartável recebe uma sequência pequena e previamente acordada de senhas incorretas. As respostas continuam sem atraso progressivo, limite, desafio ou alerta. O objetivo é observar o controle, não encontrar uma senha.
+## Por que preciso prestar atenção
 
-## Impact
+O volume aumenta a chance de adivinhar senhas e códigos curtos. Um bloqueio mal planejado também pode causar indisponibilidade ao permitir que terceiros travem contas legítimas.
 
-- maior viabilidade de account takeover;
-- adivinhação de senhas e códigos de curta duração;
-- **availability** afetada se lockout puder ser abusado para bloquear vítimas;
-- aumento de carga e ruído operacional.
+## Como eu reconheceria em ambiente autorizado
 
-## How to Identify
+Use uma conta descartável e uma quantidade pequena, previamente acordada, de tentativas incorretas. Observe se existem atraso progressivo, limitação, desafio ou alerta. Mapeie separadamente web, API, mobile, MFA e recuperação.
 
-Mapeie login web, APIs, mobile, protocolos legados, MFA e recuperação. Em teste autorizado, observe limites por conta, origem, dispositivo e comportamento agregado; verifique concorrência e janelas de tempo sem exceder o escopo.
+O objetivo é avaliar o controle, não descobrir uma senha. Não exceda os limites do escopo.
 
-Comportamento esperado: redução progressiva da taxa, correlação e alerta. Vulnerável: volume significativo aceito ou limites reiniciáveis/isolados por canal.
+## Como corrigir ou prevenir
 
-## Mitigation
+- combine sinais de conta, origem, dispositivo e comportamento agregado;
+- use limitação de taxa e atrasos progressivos;
+- projete bloqueios temporários que resistam a abuso de negação de serviço;
+- aplique política consistente a todos os fatores e canais;
+- registre eventos sem gravar credenciais e gere alertas;
+- combine o controle com senhas fortes e MFA;
+- não trate CAPTCHA como única defesa.
 
-- aplique rate limiting e throttling com múltiplos sinais;
-- associe contadores à conta, não apenas ao IP;
-- use atrasos progressivos e controles adaptativos;
-- projete lockout temporário e recuperação para resistir a DoS;
-- proteja cada fator e canal;
-- registre eventos sem credenciais e gere alertas;
-- combine com senhas fortes e MFA; CAPTCHA não deve ser a única defesa.
+## O que eu preciso lembrar
 
-## Related Attacks
+- Limite por IP e limite por usuário têm pontos cegos diferentes.
+- Bloqueio permanente pode virar uma ferramenta de ataque.
+- Rate limiting reduz escala, mas não corrige senha fraca ou vazada.
 
-**Brute force** testa muitos candidatos; **credential stuffing** reutiliza pares vazados; **password spraying** distribui poucas senhas por muitas contas. [Username enumeration](AUTH-01-username-enumeration.md) fornece alvos e [weak password policy](AUTH-03-weak-password-policy.md) aumenta a chance de sucesso.
+## Referências técnicas
 
-## CWE
-
-[CWE-307 — Improper Restriction of Excessive Authentication Attempts](https://cwe.mitre.org/data/definitions/307.html) é a correspondência direta para restrições ausentes ou inadequadas.
-
-## OWASP Relationship
-
-O Authentication Cheat Sheet trata proteção contra ataques automatizados. O WSTG v4.2 possui o teste **WSTG-ATHN-03 — Testing for Weak Lock Out Mechanism**.
-
-## Key Takeaways
-
-- Um único contador por IP ou usuário raramente é suficiente.
-- Lockout mal projetado pode virar denial of service.
-- Todos os canais precisam aplicar política consistente.
-- Rate limiting é uma camada, não a solução completa.
-
-## References
-
-- [OWASP Authentication Cheat Sheet — Protect Against Automated Attacks](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html#protect-against-automated-attacks)
-- [OWASP WSTG v4.2 — Weak Lock Out Mechanism](https://wstg.owasp.org/v4.2/4-Web_Application_Security_Testing/04-Authentication_Testing/03-Testing_for_Weak_Lock_Out_Mechanism/)
+- [OWASP Authentication Cheat Sheet — Automated Attacks](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html#protect-against-automated-attacks)
 - [OWASP Credential Stuffing Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Credential_Stuffing_Prevention_Cheat_Sheet.html)
-- [MITRE CWE-307](https://cwe.mitre.org/data/definitions/307.html)
+- [CWE-307 — Improper Restriction of Excessive Authentication Attempts](https://cwe.mitre.org/data/definitions/307.html)

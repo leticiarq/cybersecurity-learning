@@ -1,72 +1,66 @@
-# AUTH-05 — Insecure Password Storage
+# AUTH-05 — Armazenamento inseguro de senhas
 
-## Overview
+## O que eu entendi, em uma frase
 
-**Insecure password storage** deixa senhas recuperáveis ou baratas de adivinhar após acesso ao banco de dados. A senha normalmente não precisa ser recuperada: o servidor deve apenas verificar uma tentativa.
+Depois de obter o banco de dados, um invasor consegue ler as senhas ou testar candidatos com custo muito baixo.
 
-Por isso, plaintext, encoding e encryption reversível não são substitutos de **password hashing**.
+## A pergunta que orienta meu entendimento
 
-## How It Works
+O servidor precisa recuperar a senha original? Normalmente, não. Ele só precisa responder: “a tentativa atual corresponde à senha cadastrada?”. Por isso, deve armazenar um resultado de **password hashing**, e não a senha reversível.
 
-| Técnica | Propriedade | Adequação para senhas |
-|---|---|---|
-| Plaintext | Valor original armazenado | Inadequada |
-| Encoding | Representação reversível sem chave | Inadequada |
-| Encryption | Reversível com chave | Normalmente inadequada |
-| Hash geral rápido | Irreversível, mas barato de testar | Inadequada isoladamente |
-| Password hashing | Salt e custo configurável | Projetada para este uso |
+| Forma de armazenamento | Problema |
+|---|---|
+| Texto puro | A senha fica imediatamente visível |
+| Base64 ou outro encoding | Qualquer pessoa pode reverter sem chave |
+| Criptografia | Quem obtém a chave pode recuperar todas as senhas |
+| SHA-256 puro | Tentativas offline são rápidas demais |
+| Password hashing com salt e custo | Construído especificamente para verificar senhas |
+
+## Como a verificação funciona
 
 ```text
-Cadastro: senha + salt único -> password hashing -> hash armazenado
-Login: tentativa + salt      -> password hashing -> comparação
+Cadastro:
+senha + salt único -> Argon2id/scrypt/bcrypt/PBKDF2 -> hash armazenado
+
+Login:
+tentativa + salt armazenado -> mesma função -> comparação
 ```
 
-O `salt` é único e não secreto; impede que senhas iguais gerem registros iguais e reduz o valor de tabelas pré-computadas. Argon2id, scrypt, bcrypt e PBKDF2 são construções específicas, com escolha e parâmetros dependentes da plataforma e dos requisitos.
+O `salt` é diferente para cada senha e não precisa ser secreto. Ele evita que senhas iguais produzam registros iguais e reduz a utilidade de tabelas pré-calculadas. O custo configurável torna cada tentativa mais cara.
 
-## Example
+## Exemplo para eu fixar
 
-Uma aplicação armazena `base64(password)`. Após uma leitura indevida do banco, qualquer pessoa reverte Base64 imediatamente. Em outro caso, SHA-256 sem salt permite guesses muito rápidos. Ambos são diferentes de password hashing deliberadamente custoso.
+Se a aplicação salva `base64(senha)`, basta decodificar o texto. Se salva SHA-256 sem salt, o valor não é diretamente reversível, mas um invasor pode calcular milhões de candidatos rapidamente. Os dois casos são inadequados por motivos diferentes.
 
-## Impact
+## Por que preciso prestar atenção
 
-Uma violação do banco pode causar **credential compromise** em massa, account takeover local e impacto em outros serviços devido à reutilização. Encryption concentra o risco adicional na chave de descriptografia.
+Uma leitura indevida do banco pode comprometer muitas contas ao mesmo tempo. Como usuários reutilizam senhas, o dano pode alcançar outros serviços.
 
-## How to Identify
+## Como eu reconheceria em ambiente autorizado
 
-Em revisão autorizada de código e arquitetura, identifique algoritmo, salt, parâmetros, truncamento, migração e localização de secrets. Nunca solicite ou exponha senhas reais. Um hash de comprimento fixo não prova armazenamento seguro.
+Em revisão de arquitetura e código, identifique algoritmo, parâmetros, salt, truncamento, estratégia de migração e localização de segredos. Não solicite nem exponha senhas reais. A aparência de um hash não prova que o mecanismo seja adequado.
 
-## Mitigation
+## Como corrigir ou prevenir
 
-- prefira Argon2id quando disponível; use alternativas maduras conforme requisitos;
-- gere salt único automaticamente;
-- calibre custo e reavalie ao longo do tempo;
-- use APIs de frameworks e bibliotecas mantidas;
-- compare resultados com função apropriada;
-- faça rehash gradual após login quando os parâmetros mudarem;
-- mantenha eventual `pepper` separado do banco; ele não substitui salt;
-- nunca implemente primitivas criptográficas manualmente.
+- prefira Argon2id quando disponível ou outra alternativa madura adequada à plataforma;
+- gere um salt único automaticamente;
+- calibre e reavalie o custo ao longo do tempo;
+- use APIs mantidas de frameworks e bibliotecas;
+- faça *rehash* gradual quando os parâmetros mudarem;
+- mantenha um `pepper` opcional separado do banco;
+- nunca crie primitivas criptográficas próprias.
 
-## Related Attacks
+O `pepper` é uma camada adicional; não substitui o salt nem a função apropriada.
 
-Armazenamento inseguro viabiliza password cracking offline. [Políticas fracas](AUTH-03-weak-password-policy.md) e [credential exposure](AUTH-14-credential-exposure.md) ampliam o impacto.
+## O que eu preciso lembrar
 
-## CWE
+- Base64 é representação, não proteção.
+- Criptografia reversível normalmente não é necessária para senhas.
+- SHA-256 puro é rápido demais para esse uso.
+- Algoritmo, salt e parâmetros precisam ser avaliados juntos.
 
-[CWE-256 — Plaintext Storage of a Password](https://cwe.mitre.org/data/definitions/256.html) aplica-se diretamente ao caso plaintext. [CWE-916 — Use of Password Hash With Insufficient Computational Effort](https://cwe.mitre.org/data/definitions/916.html) cobre hashes ou parâmetros baratos. Nenhuma das duas, isoladamente, representa todas as formas possíveis do problema.
-
-## OWASP Relationship
-
-O OWASP Password Storage Cheat Sheet fornece seleção e operação de password hashing. O OWASP ASVS inclui requisitos de armazenamento de credenciais no capítulo de Authentication.
-
-## Key Takeaways
-
-- Base64 é encoding, não proteção.
-- Encryption é reversível e normalmente desnecessária para senhas.
-- SHA-256 isolado é rápido demais para password storage.
-- Salt, algoritmo e parâmetros devem ser avaliados em conjunto.
-
-## References
+## Referências técnicas
 
 - [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
-- [MITRE CWE-256](https://cwe.mitre.org/data/definitions/256.html)
-- [MITRE CWE-916](https://cwe.mitre.org/data/definitions/916.html)
+- [CWE-256 — Plaintext Storage of a Password](https://cwe.mitre.org/data/definitions/256.html)
+- [CWE-916 — Password Hash With Insufficient Computational Effort](https://cwe.mitre.org/data/definitions/916.html)

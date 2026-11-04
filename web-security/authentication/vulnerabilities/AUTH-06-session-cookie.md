@@ -1,75 +1,69 @@
-# AUTH-06 — Insecure Session Cookie
+# AUTH-06 — Cookie de sessão inseguro
 
-## Overview
+## O que eu entendi, em uma frase
 
-Um **session cookie** transporta um identificador que permite ao servidor reconhecer uma sessão. Configuração insegura pode expor esse valor ou permitir que ele seja enviado em contextos indevidos.
+O cookie que identifica a sessão pode ser exposto, enviado ao destino errado ou ter um valor fácil de prever.
 
-Como o identificador representa temporariamente a autenticação do usuário, quem o obtém pode conseguir reutilizá-lo sem conhecer a senha.
+## Por que o cookie é sensível
 
-## How It Works
+Depois do login, o navegador costuma receber um ID de sessão:
 
-```text
-Login -> servidor cria sessão -> cookie com session ID
-                                      |
-                      navegador reenvia em requisições
+```http
+Set-Cookie: session_id=r4nd0m...; Secure; HttpOnly; SameSite=Lax
 ```
 
-- `Secure`: envia o cookie apenas por conexões seguras.
-- `HttpOnly`: impede leitura pelas APIs JavaScript do navegador; não corrige XSS por completo.
-- `SameSite`: controla envio em contextos cross-site e ajuda contra CSRF; não é um substituto universal para tokens anti-CSRF.
-- `Domain` e `Path`: limitam onde o cookie é enviado.
+Nas requisições seguintes, o navegador devolve esse valor. O servidor encontra a sessão e reconhece o usuário. Portanto, uma cópia do ID pode permitir reutilizar a sessão sem conhecer a senha.
 
-IDs previsíveis, conteúdo sensível diretamente no cookie e escopos amplos criam riscos adicionais.
+```text
+login -> servidor cria sessão -> navegador recebe o ID
+                                      |
+                           cada requisição envia o ID
+```
 
-## Example
+## O que preciso saber sobre cada atributo
+
+| Atributo | Proteção oferecida | Limite |
+|---|---|---|
+| `Secure` | Envia o cookie somente por HTTPS | Não impede outros vazamentos |
+| `HttpOnly` | Impede leitura direta por JavaScript | Não corrige todas as consequências de XSS |
+| `SameSite` | Restringe certos envios entre sites | Não substitui sempre a proteção contra CSRF |
+| `Domain` e `Path` | Limitam onde o cookie é enviado | Precisam de escopo mínimo adequado |
+
+Considere este exemplo:
 
 ```http
 Set-Cookie: session_id=12345; Path=/
 ```
 
-O exemplo não usa `Secure`, `HttpOnly` ou `SameSite`, e o valor sequencial sugere baixa imprevisibilidade. Um cookie configurado com atributos corretos ainda precisa de um ID forte e validação server-side.
+Além de não declarar os três atributos defensivos, o valor sequencial sugere previsibilidade. Atributos corretos também não compensariam um ID fraco.
 
-## Impact
+## Por que preciso prestar atenção
 
-Exposição ou previsão pode levar a **session hijacking**, afetando confidentiality e integrity conforme os privilégios da vítima. O atributo ausente determina o caminho de exposição; não se deve atribuir o mesmo impacto automaticamente a toda configuração.
+Se outra pessoa obtiver ou prever um ID válido, poderá tentar assumir a sessão (*session hijacking*). O impacto acompanha os privilégios da vítima.
 
-## How to Identify
+## Como eu reconheceria em ambiente autorizado
 
-Em sessão própria e ambiente autorizado, inspecione `Set-Cookie`, escopo, persistência, conteúdo e comportamento em HTTP/HTTPS. Compare múltiplos IDs sem tentar prever sessões reais. Verifique se dados sensíveis ou privilégios são confiados ao conteúdo modificável.
+Inspecione cookies da sua própria sessão. Verifique atributos, escopo, duração, conteúdo e comportamento em HTTP e HTTPS. Compare IDs apenas para avaliar formato e aleatoriedade; não tente prever sessões reais de terceiros.
 
-## Mitigation
+## Como corrigir ou prevenir
 
-- use HTTPS em toda a sessão e marque cookies de autenticação como `Secure`;
-- use `HttpOnly` quando JavaScript não precisar do cookie;
-- selecione `SameSite` conforme o fluxo e mantenha proteção CSRF apropriada;
-- restrinja `Domain` e `Path`; considere prefixos `__Host-` quando aplicável;
-- gere IDs opacos com CSPRNG e entropia suficiente;
-- não armazene senha nem dados sensíveis desnecessários no cookie;
-- aplique rotação, expiração e invalidação server-side.
+- use HTTPS durante toda a sessão e marque o cookie como `Secure`;
+- use `HttpOnly` quando JavaScript não precisar do valor;
+- escolha `SameSite` de acordo com o fluxo e mantenha defesa contra CSRF;
+- restrinja `Domain` e `Path` e considere o prefixo `__Host-`;
+- gere IDs opacos e imprevisíveis com CSPRNG;
+- não coloque senha ou dados sensíveis desnecessários no cookie;
+- aplique renovação, expiração e invalidação no servidor.
 
-## Related Attacks
+## O que eu preciso lembrar
 
-Cookies expostos favorecem session hijacking. A reutilização após logout é discutida em [AUTH-07](AUTH-07-session-invalidation.md); preservar o ID durante o login pode causar [AUTH-08](AUTH-08-session-fixation.md).
+- ID de sessão é uma credencial temporária.
+- Cada atributo resolve uma parte diferente do problema.
+- Segurança do cookie também depende do ciclo de vida no servidor.
 
-## CWE
-
-[CWE-614 — Sensitive Cookie in HTTPS Session Without 'Secure' Attribute](https://cwe.mitre.org/data/definitions/614.html) e [CWE-1004 — Sensitive Cookie Without 'HttpOnly' Flag](https://cwe.mitre.org/data/definitions/1004.html) representam configurações específicas. “Insecure session cookie” é mais amplo e não possui uma única CWE que cubra todos os casos.
-
-## OWASP Relationship
-
-O OWASP Session Management Cheat Sheet detalha geração, transporte e atributos de cookies. O WSTG possui testes próprios para session management schema e cookie attributes.
-
-## Key Takeaways
-
-- O session ID deve ser tratado como credencial.
-- Cada atributo de cookie resolve uma finalidade diferente.
-- Atributos corretos não compensam um ID previsível.
-- Cookie seguro depende também do ciclo de vida server-side.
-
-## References
+## Referências técnicas
 
 - [OWASP Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
 - [OWASP WSTG — Cookie Attributes](https://wstg.owasp.org/latest/4-Web_Application_Security_Testing/06-Session_Management/02-Cookies_Attributes/)
-- [RFC 6265 — HTTP State Management Mechanism](https://www.rfc-editor.org/rfc/rfc6265)
-- [MITRE CWE-614](https://cwe.mitre.org/data/definitions/614.html)
-- [MITRE CWE-1004](https://cwe.mitre.org/data/definitions/1004.html)
+- [CWE-614 — Cookie Without Secure](https://cwe.mitre.org/data/definitions/614.html)
+- [CWE-1004 — Cookie Without HttpOnly](https://cwe.mitre.org/data/definitions/1004.html)
